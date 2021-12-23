@@ -59,8 +59,8 @@ clean-test: ## Remove test and coverage artifacts.
 	rm -rf htmlcov/
 
 .PHONY: clean-docs
-clean-docs: ## Remove files in docs/_build
-	$(MAKE) -C docs clean
+clean-docs: ## Remove MkDocs site/ directory
+	rm -rf site/
 
 .PHONY: lint
 lint: ## Run all pre-commit hooks on all files
@@ -83,12 +83,9 @@ coverage: ## Check code coverage quickly with the default Python.
 	$(BROWSER) htmlcov/index.html
 
 .PHONY: docs
-docs: clean-docs ## Generate Sphinx HTML documentation, including API docs.
-	rm -f docs/$(PACKAGE).rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ src/$(PACKAGE)
-	$(MAKE) -C docs html
-	$(BROWSER) docs/_build/html/index.html
+docs: clean-docs ## Generate MkDocs HTML documentation
+	mkdocs build
+	$(BROWSER) site/index.html
 
 .PHONY: upload
 upload: ## Upload package to Python Package Index (PyPI).
@@ -100,7 +97,7 @@ build: clean ## Builds source and wheel package.
 	python -m twine check --strict dist/*
 
 .PHONY: devenv
-devenv: ## Install package development mode + dependencies.
+devenv: ## Install package (in dev mode) and dev packages.
 	python -m pip install -U pip wheel setuptools
 	python -m pip install -e ".[dev,docs,test]"
 
