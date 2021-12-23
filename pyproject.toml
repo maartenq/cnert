@@ -1,0 +1,17 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 79
+skip-string-normalization = true
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+skip_gitignore = true
+line_length = 79
+
+[tool.setuptools_scm]

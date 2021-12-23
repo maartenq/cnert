@@ -1,0 +1,86 @@
+---
+# .github/workflows/ci.yml
+
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    env:
+      USING_COVERAGE: "3.9"
+
+    strategy:
+      matrix:
+        python-version:
+          - "3.6"
+          - "3.7"
+          - "3.8"
+          - "3.9"
+          - "3.10"
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Check Python
+        run: |
+          set -xe
+          python -VV
+          python -m site
+
+      - name: Install dependencies
+        run: |
+          set -xe
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade coverage[toml] virtualenv tox tox-gh-actions
+
+      - name: Run tox targets for ${{ matrix.python-version }}
+        run: python -m tox
+
+      - name: Create XML coverage
+        run: python -m coverage xml
+        if: contains(env.USING_COVERAGE, matrix.python-version)
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v2
+        if: contains(env.USING_COVERAGE, matrix.python-version)
+        with:
+          fail_ci_if_error: True
+          verbose: True
+
+  test-dev-env-installation:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+
+    name: Verify dev env install on
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Install dev deps in dev mode.
+        run: python -m pip install -e '.[dev]'
+
+      - name: Import package and print version.
+        run: python -c 'import cnert; print(cnert.__version__)'
