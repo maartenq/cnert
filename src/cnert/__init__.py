@@ -1,18 +1,16 @@
 # cnert/__init__.py
-# vim: ai et ts=4 sw=4 sts=4 ft=python fileencoding=utf-8
 
-"""Top-level package for cnert."""
+"""
+Cnert makes TLS private keys, CSRs, private CAs and certificates.
+"""
 
-__author__ = """Maarten"""
-__email__ = 'maarten@example.com'
-
-# Version set by setuptools_scm
-try:
-    from importlib.metadata import version
-except ImportError:
-    # Python version < 3.8
-    from pkg_resources import get_distribution
-
-    __version__ = get_distribution('cnert').version
-else:
-    __version__ = version('cnert')
+__version__ = "0.1.2"
+__title__ = "Cnert"
+__description__ = (
+    "Cnert makes TLS private keys, CSRs, private CAs and certificates."
+)
+__uri__ = "https://github.com/maartenq/cnert"
+__author__ = "Maarten"
+__email__ = "ikmaarten@gmail.com"
+__license__ = "ISC License"
+__copyright__ = "Copyright (c) 2021  Maarten"

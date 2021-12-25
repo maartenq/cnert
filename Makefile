@@ -30,8 +30,41 @@ PACKAGE = cnert
 help:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
 
+.PHONY: devenv
+devenv: ## Install package (in dev mode) and dev packages.
+	python -m pip install -U pip wheel
+	python -m pip install -e ".[dev,docs,test]"
+
+.PHONY: lint
+lint: ## Run all pre-commit hooks on all files
+	pre-commit run --all-files --show-diff-on-failure
+
+.PHONY: test
+test: ## Run tests quickly with the default Python.
+	python -m pytest --cov=$(PACKAGE)
+
+.PHONY: coverage
+coverage: ## Check code coverage quickly with the default Python.
+	python -m coverage erase
+	python -m coverage run --source $(PACKAGE) -m pytest
+	python -m coverage report -m
+	python -m coverage html
+	$(BROWSER) htmlcov/index.html
+
+.PHONY: tox
+tox: ## Run tests on every Python version with tox.
+	tox
+
+.PHONY: docs
+docs: clean-docs ## Generate MkDocs HTML documentation
+	mkdocs build
+	$(BROWSER) site/index.html
+
 .PHONY: clean
-clean: ## Remove untracked files from the working tree (using `git clean`)
+clean: clean-git clean-build clean-pyc clean-test clean-docs ## Clean all
+
+.PHONY: clean-git
+clean-git: ## Remove untracked files from the working tree (using `git clean`)
 	git clean --force -x -d
 
 .PHONY: clean-build
@@ -62,44 +95,13 @@ clean-test: ## Remove test and coverage artifacts.
 clean-docs: ## Remove MkDocs site/ directory
 	rm -rf site/
 
-.PHONY: lint
-lint: ## Run all pre-commit hooks on all files
-	pre-commit run --all-files --show-diff-on-failure
-
-.PHONY: test
-test: ## Run tests quickly with the default Python.
-	python -m pytest --cov=$(PACKAGE)
-
-.PHONY: tox
-tox: ## Run tests on every Python version with tox.
-	tox
-
-.PHONY: coverage
-coverage: ## Check code coverage quickly with the default Python.
-	python -m coverage erase
-	python -m coverage run --source $(PACKAGE) -m pytest
-	python -m coverage report -m
-	python -m coverage html
-	$(BROWSER) htmlcov/index.html
-
-.PHONY: docs
-docs: clean-docs ## Generate MkDocs HTML documentation
-	mkdocs build
-	$(BROWSER) site/index.html
-
-.PHONY: upload
-upload: ## Upload package to Python Package Index (PyPI).
-	 python -m twine upload dist/*
-
 .PHONY: build
 build: clean ## Builds source and wheel package.
-	python -m build
-	python -m twine check --strict dist/*
+	python -m flit build --no-setup-py
 
-.PHONY: devenv
-devenv: ## Install package (in dev mode) and dev packages.
-	python -m pip install -U pip wheel setuptools
-	python -m pip install -e ".[dev,docs,test]"
+.PHONY: publish
+publish: ## Publish package to Python Package Index (PyPI).
+	 python -m flit publish --no-setup-py
 
 .PHONY: release
-release: clean tox build upload ## Release package: test, build and upload to PyPI.
+release: clean tox clean build publish clean ## Release package: test, build and publish to PyPI.

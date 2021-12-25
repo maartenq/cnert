@@ -1,17 +1,88 @@
 # pyproject.toml
 
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
-build-backend = "setuptools.build_meta"
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "cnert"
+authors = [{ name = "Maarten", email = "ikmaarten@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.6,<4"
+dynamic = ["version", "description"]
+license = { file = "LICENSE" }
+keywords = ["logging", "structured", "structure", "log"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: ISC License (ISCL)",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "typer",
+    "typing-extensions; python_version<'3.8'",
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/maartenq/cnert/issues"
+"Source Code" = "https://github.com/maartenq/cnert"
+Documentation = "https://cnert.readthedocs.io/en/latest/"
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "bump2version",
+    "coverage[toml]",
+    "flake8",
+    "flit",
+    "mypy",
+    "pre-commit",
+    "tox",
+]
+docs = [
+    "mkdocs",
+]
+test = [
+    "coverage[toml]",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+]
+
+[project.scripts]
+cnert = "cnert.cli:app"
 
 [tool.black]
 line-length = 79
 skip-string-normalization = true
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-skip_gitignore = true
-line_length = 79
+[tool.coverage.run]
+branch = true
 
-[tool.setuptools_scm]
+[tool.coverage.report]
+exclude_lines = [
+    "\\# pragma: no cover\\b",
+    "^\\s*raise AssertionError\\b",
+    "^\\s*raise NotImplementedError\\b",
+    "^\\s*return NotImplemented\\b",
+]
+show_missing = true
+
+[tool.isort]
+line_length = 79
+multi_line_output = 3
+profile = "black"
+skip_gitignore = true

@@ -5,7 +5,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.1
+    rev: v4.1.0
     hooks:
       - id: check-added-large-files
       - id: end-of-file-fixer
@@ -14,19 +14,12 @@ repos:
       - id: mixed-line-ending
         args:
         - --fix=lf
-      - id: requirements-txt-fixer
       - id: check-yaml
       - id: check-toml
       - id: check-ast
       - id: check-merge-conflict
       - id: detect-private-key
       - id: debug-statements
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.10.1
-    hooks:
-      - id: isort
-        name: isort (python)
 
   - repo: https://github.com/psf/black
     rev: 21.12b0
@@ -38,10 +31,11 @@ repos:
     hooks:
       - id: flake8
 
-  - repo: https://github.com/asottile/setup-cfg-fmt
-    rev: v1.20.0
+  - repo: https://github.com/pycqa/isort
+    rev: 5.10.1
     hooks:
-      - id: setup-cfg-fmt
+      - id: isort
+        name: isort (python)
 
   - repo: https://github.com/tox-dev/tox-ini-fmt
     rev: 0.5.1
