@@ -4,7 +4,7 @@
 Cnert makes TLS private keys, CSRs, private CAs and certificates.
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __title__ = "Cnert"
 __description__ = (
     "Cnert makes TLS private keys, CSRs, private CAs and certificates."
