@@ -11,13 +11,14 @@ readme = "README.md"
 requires-python = ">=3.6,<4"
 dynamic = ["version", "description"]
 license = { file = "LICENSE" }
-keywords = ["logging", "structured", "structure", "log"]
+keywords = ["certificate", "X.509", "TLS", "cryptography", "CA", "testing"]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
-    "License :: OSI Approved :: ISC License (ISCL)",
+    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3 :: Only",
@@ -29,8 +30,12 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python",
+    "Topic :: Security :: Cryptography",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Testing :: Mocking",
+    "Topic :: Software Development :: Testing",
 ]
+
 dependencies = [
     "typer",
     "typing-extensions; python_version<'3.8'",

@@ -12,5 +12,5 @@ __description__ = (
 __uri__ = "https://github.com/maartenq/cnert"
 __author__ = "Maarten"
 __email__ = "ikmaarten@gmail.com"
-__license__ = "ISC License"
+__license__ = "MIT or Apache License, Version 2.0"
 __copyright__ = "Copyright (c) 2021  Maarten"
