@@ -37,6 +37,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "cryptography",
     "typer",
     "typing-extensions; python_version<'3.8'",
 ]
