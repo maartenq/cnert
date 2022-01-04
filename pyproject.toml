@@ -13,7 +13,7 @@ dynamic = ["version", "description"]
 license = { file = "LICENSE" }
 keywords = ["certificate", "X.509", "TLS", "cryptography", "CA", "testing"]
 classifiers = [
-    "Development Status :: 1 - Planning",
+    "Development Status :: 2 - Pre-Alpha",
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
@@ -37,7 +37,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "cryptography",
+    "cryptography >=35.0.0.0",
+    "idna",
     "typer",
     "typing-extensions; python_version<'3.8'",
 ]
@@ -73,7 +74,6 @@ cnert = "cnert.cli:app"
 
 [tool.black]
 line-length = 79
-skip-string-normalization = true
 
 [tool.coverage.run]
 branch = true
