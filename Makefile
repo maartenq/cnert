@@ -1,91 +1,54 @@
-# Makefile
+.PHONY: install
+install: ## Install the poetry environment and install the pre-commit hooks
+	@echo "🚀 Creating virtual environment using pyenv and poetry"
+	@poetry install
+	@ poetry run pre-commit install
+	@poetry shell
 
-.DEFAULT_GOAL := help
-define BROWSER_PYSCRIPT
-import os, webbrowser, sys
-try:
-	from urllib import pathname2url
-except:
-	from urllib.request import pathname2url
+.PHONY: check
+check: ## Run code quality tools.
+	@echo "🚀 Checking Poetry lock file consistency with 'pyproject.toml': Running poetry lock --check"
+	@poetry lock --check
+	@echo "🚀 Linting code: Running pre-commit"
+	@poetry run pre-commit run -a
+	@echo "🚀 Static type checking: Running mypy"
+	@poetry run mypy src/
 
-webbrowser.open("file://" + pathname2url(os.path.abspath(sys.argv[1])))
-endef
-export BROWSER_PYSCRIPT
+.PHONY: test
+test: ## Test the code with pytest
+	@echo "🚀 Testing code: Running pytest"
+	@poetry run pytest --cov --cov-config=pyproject.toml --cov-report=xml
 
-define PRINT_HELP_PYSCRIPT
-import re, sys
+.PHONY: build
+build: clean-build ## Build wheel file using poetry
+	@echo "🚀 Creating wheel file"
+	@poetry build
 
-for line in sys.stdin:
-	match = re.match(r'^([a-zA-Z_-]+):.*?## (.*)$$', line)
-	if match:
-		target, help = match.groups()
-		print("%-20s %s" % (target, help))
-endef
-export PRINT_HELP_PYSCRIPT
-BROWSER := python -c "$$BROWSER_PYSCRIPT"
+.PHONY: clean-build
+clean-build: ## clean build artifacts
+	@rm -rf dist
 
-PACKAGE = cnert
+.PHONY: publish
+publish: ## publish a release to pypi.
+	@echo "🚀 Publishing: Dry run."
+	@poetry config pypi-token.pypi $(PYPI_TOKEN)
+	@poetry publish --dry-run
+	@echo "🚀 Publishing."
+	@poetry publish
+
+.PHONY: build-and-publish
+build-and-publish: build publish ## Build and publish.
+
+.PHONY: docs-test
+docs-test: ## Test if documentation can be built without warnings or errors
+	@poetry run mkdocs build -s
+
+.PHONY: docs
+docs: ## Build and serve the documentation
+	@poetry run mkdocs serve
 
 .PHONY: help
 help:
-	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-.PHONY: lint
-lint: ## Run all pre-commit hooks on all files
-	pre-commit run --all-files --show-diff-on-failure
-
-.PHONY: test
-test: ## Run tests quickly with the default Python.
-	python -m pytest --cov=$(PACKAGE)
-
-.PHONY: coverage
-coverage: ## Check code coverage quickly with the default Python.
-	python -m coverage erase
-	python -m coverage run --source $(PACKAGE) -m pytest
-	python -m coverage report -m
-	python -m coverage html
-	$(BROWSER) htmlcov/index.html
-
-.PHONY: tox
-tox: ## Run tests on every Python version with tox.
-	tox
-
-.PHONY: docs
-docs: clean-docs ## Generate MkDocs HTML documentation
-	mkdocs build
-	$(BROWSER) site/index.html
-
-.PHONY: clean
-clean: clean-git clean-build clean-pyc clean-test clean-docs ## Clean all
-
-.PHONY: clean-git
-clean-git: ## Remove untracked files from the working tree (using `git clean`)
-	git clean --force -x -d
-
-.PHONY: clean-build
-clean-build: ## Remove build artifacts.
-	rm -rf build/
-	rm -rf dist/
-	rm -rf .eggs/
-	find . -name '*.egg-info' -exec rm -rf {} +
-	find . -name '*.egg' -exec rm -f {} +
-
-.PHONY: clean-pyc
-clean-pyc: ## Remove Python file artifacts.
-	find . -name '*.pyc' -exec rm -f {} +
-	find . -name '*.pyo' -exec rm -f {} +
-	find . -name '*~' -exec rm -f {} +
-	find . -name '__pycache__' -exec rm -rf {} +
-
-.PHONY: clean-test
-clean-test: ## Remove test and coverage artifacts.
-	rm -f .coverage
-	rm -f coverage.xml
-	rm -rf .pytest_cache
-	rm -rf .tox/
-	rm -f .coverage
-	rm -rf htmlcov/
-
-.PHONY: clean-docs
-clean-docs: ## Remove MkDocs site/ directory
-	rm -rf site/
+.DEFAULT_GOAL := help
