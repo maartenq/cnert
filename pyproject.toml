@@ -77,7 +77,6 @@ exclude_lines = [
 skip_empty = true
 show_missing = true
 
-
 [tool.isort]
 line_length = 79
 multi_line_output = 3
