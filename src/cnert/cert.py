@@ -2,8 +2,8 @@
 
 """cert.py package for cnert."""
 
-import ipaddress
 from datetime import datetime, timedelta
+from ipaddress import ip_address, ip_network
 from typing import Dict, Optional
 
 import idna
@@ -19,7 +19,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 def _idna_encode(string: str) -> str:
     for prefix in ["*.", "."]:
         if string.startswith(prefix):
-            string = string[len(prefix) :]
+            string = string[len(prefix) :]  # noqa E203
             bytes = prefix.encode("ascii") + idna.encode(string, uts46=True)
             return bytes.decode("ascii")
     return idna.encode(string, uts46=True).decode("ascii")
@@ -27,10 +27,10 @@ def _idna_encode(string: str) -> str:
 
 def _identity_string_to_x509(identity: str) -> x509.GeneralName:
     try:
-        return x509.IPAddress(ipaddress.ip_address(identity))
+        return x509.IPAddress(ip_address(identity))
     except ValueError:
         try:
-            return x509.IPAddress(ipaddress.ip_network(identity))
+            return x509.IPAddress(ip_network(identity))
         except ValueError:
             if "@" in identity:
                 return x509.RFC822Name(identity)

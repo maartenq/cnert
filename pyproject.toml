@@ -1,17 +1,20 @@
 # pyproject.toml
 
 [build-system]
-requires = ["flit_core >=3.2,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
+[tool.poetry]
 name = "cnert"
-authors = [{ name = "Maarten", email = "ikmaarten@gmail.com"}]
+version = "0.1.4"
+description = "Cnert makes TLS private keys, CSRs, private CAs and certificates."
+authors = ["Maarten <ikmaarten@gmail.com>"]
+license = "MIT"
 readme = "README.md"
-requires-python = ">=3.6,<4"
-dynamic = ["version", "description"]
-license = { file = "LICENSE" }
-keywords = ["certificate", "X.509", "TLS", "cryptography", "CA", "testing"]
+homepage = "https://github.com/maartenq/cnert"
+repository = "https://github.com/maartenq/cnert"
+documentation = "https://cnert.readthedocs.io/en/latest/"
+keywords = ["certificate", "X.509", "TLS", "cryptography", "testing"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Environment :: Console",
@@ -24,8 +27,6 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.6",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -36,41 +37,19 @@ classifiers = [
     "Topic :: Software Development :: Testing",
 ]
 
-dependencies = [
-    "cryptography >=35.0.0.0",
-    "idna",
-    "typer",
-    "typing-extensions; python_version<'3.8'",
-]
+[tool.poetry.dependencies]
+python = "^3.8"
+cryptography = "^37.0.4"
+idna = "^3.3"
+typer = "^0.6.1"
 
-[project.urls]
-"Bug Tracker" = "https://github.com/maartenq/cnert/issues"
-"Source Code" = "https://github.com/maartenq/cnert"
-Documentation = "https://cnert.readthedocs.io/en/latest/"
-
-[project.optional-dependencies]
-dev = [
-    "black",
-    "bump2version",
-    "coverage[toml]",
-    "flake8",
-    "flit",
-    "mypy",
-    "pre-commit",
-    "tox",
-]
-docs = [
-    "mkdocs",
-]
-test = [
-    "coverage[toml]",
-    "pre-commit",
-    "pytest",
-    "pytest-cov",
-]
-
-[project.scripts]
+[tool.poetry.scripts]
 cnert = "cnert.cli:app"
+
+[tool.poetry.dev-dependencies]
+pytest = "^7.1.2"
+coverage = {extras = ["toml"], version = "^6.4.2"}
+tox = "^3.25.1"
 
 [tool.black]
 line-length = 79
