@@ -4,17 +4,6 @@ import ipaddress
 from typing import Dict
 
 import pytest
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509 import ObjectIdentifier, extensions, general_name
-from cryptography.x509.extensions import (
-    ExtendedKeyUsage,
-    KeyUsage,
-    SubjectAlternativeName,
-)
-from cryptography.x509.oid import NameOID
-
 from cnert.cert import (
     _add_ca_extension,
     _add_leaf_cert_extensions,
@@ -26,42 +15,52 @@ from cnert.cert import (
     _private_key_pem,
     _x509_name,
 )
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509 import ObjectIdentifier, extensions, general_name
+from cryptography.x509.extensions import (
+    ExtendedKeyUsage,
+    KeyUsage,
+    SubjectAlternativeName,
+)
+from cryptography.x509.oid import NameOID
 
 
 @pytest.fixture
 def default_name_attrs():
-    return dict(
-        BUSINESS_CATEGORY="Business Category",
-        COMMON_NAME="Common Name",
-        COUNTRY_NAME="US",
-        DN_QUALIFIER="DN qualifier",
-        DOMAIN_COMPONENT="Domain Component",
-        EMAIL_ADDRESS="info@example.com",
-        GENERATION_QUALIFIER="Generation Qualifier",
-        GIVEN_NAME="Given Name",
-        INN="INN",
-        JURISDICTION_COUNTRY_NAME="US",
-        JURISDICTION_LOCALITY_NAME="Jurisdiction Locality Name",
-        JURISDICTION_STATE_OR_PROVINCE_NAME=(
+    return {
+        "BUSINESS_CATEGORY": "Business Category",
+        "COMMON_NAME": "Common Name",
+        "COUNTRY_NAME": "US",
+        "DN_QUALIFIER": "DN qualifier",
+        "DOMAIN_COMPONENT": "Domain Component",
+        "EMAIL_ADDRESS": "info@example.com",
+        "GENERATION_QUALIFIER": "Generation Qualifier",
+        "GIVEN_NAME": "Given Name",
+        "INN": "INN",
+        "JURISDICTION_COUNTRY_NAME": "US",
+        "JURISDICTION_LOCALITY_NAME": "Jurisdiction Locality Name",
+        "JURISDICTION_STATE_OR_PROVINCE_NAME": (
             "Jurisdiction State or Province Name"
         ),
-        LOCALITY_NAME="Locality Name",
-        OGRN="OGRN",
-        ORGANIZATIONAL_UNIT_NAME="Organizational unit_name",
-        ORGANIZATION_NAME="Organization Name",
-        POSTAL_ADDRESS="Postal Address",
-        POSTAL_CODE="Postal Code",
-        PSEUDONYM="Pseudonym",
-        SERIAL_NUMBER="42",
-        SNILS="SNILS",
-        STATE_OR_PROVINCE_NAME="State or Province Name",
-        STREET_ADDRESS="Street Address",
-        SURNAME="Surname",
-        TITLE="Title",
-        UNSTRUCTURED_NAME="unstructuredName",
-        USER_ID="User ID",
-        X500_UNIQUE_IDENTIFIER="X500 Unique Identifier",
-    )
+        "LOCALITY_NAME": "Locality Name",
+        "OGRN": "OGRN",
+        "ORGANIZATIONAL_UNIT_NAME": "Organizational unit_name",
+        "ORGANIZATION_NAME": "Organization Name",
+        "POSTAL_ADDRESS": "Postal Address",
+        "POSTAL_CODE": "Postal Code",
+        "PSEUDONYM": "Pseudonym",
+        "SERIAL_NUMBER": "42",
+        "SNILS": "SNILS",
+        "STATE_OR_PROVINCE_NAME": "State or Province Name",
+        "STREET_ADDRESS": "Street Address",
+        "SURNAME": "Surname",
+        "TITLE": "Title",
+        "UNSTRUCTURED_NAME": "unstructuredName",
+        "USER_ID": "User ID",
+        "X500_UNIQUE_IDENTIFIER": "X500 Unique Identifier",
+    }
 
 
 def test__idna_encode():
@@ -153,12 +152,12 @@ def test_X509Name_default(default_name_attrs):
 
 
 def test_X509Name_with_key_arguments():
-    NAME_ATTRS: Dict[str, str] = dict(
-        COMMON_NAME="Jansen",
-        COUNTRY_NAME="NL",
-        EMAIL_ADDRESS="harry@example.com",
-        GIVEN_NAME="Harry de Groot",
-    )
+    NAME_ATTRS: Dict[str, str] = {
+        "COMMON_NAME": "Jansen",
+        "COUNTRY_NAME": "NL",
+        "EMAIL_ADDRESS": "harry@example.com",
+        "GIVEN_NAME": "Harry de Groot",
+    }
     assert _x509_name(**NAME_ATTRS) == x509.Name(
         [
             x509.NameAttribute(getattr(NameOID, key), value)
@@ -168,12 +167,12 @@ def test_X509Name_with_key_arguments():
 
 
 def test_X509Name_with_lower_key_arguments():
-    NAME_ATTRS: Dict[str, str] = dict(
-        common_name="Jansen",
-        country_name="NL",
-        email_address="harry@example.com",
-        given_name="Harry de Groot",
-    )
+    NAME_ATTRS: Dict[str, str] = {
+        "common_name": "Jansen",
+        "country_name": "NL",
+        "email_address": "harry@example.com",
+        "given_name": "Harry de Groot",
+    }
     assert _x509_name(**NAME_ATTRS) == x509.Name(
         [
             x509.NameAttribute(getattr(NameOID, key.upper()), value)

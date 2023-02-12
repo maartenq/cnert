@@ -30,11 +30,6 @@ PACKAGE = cnert
 help:
 	@python -c "$$PRINT_HELP_PYSCRIPT" < $(MAKEFILE_LIST)
 
-.PHONY: devenv
-devenv: ## Install package (in dev mode) and dev packages.
-	python -m pip install -U pip wheel
-	python -m pip install -e ".[dev,docs,test]"
-
 .PHONY: lint
 lint: ## Run all pre-commit hooks on all files
 	pre-commit run --all-files --show-diff-on-failure
@@ -94,14 +89,3 @@ clean-test: ## Remove test and coverage artifacts.
 .PHONY: clean-docs
 clean-docs: ## Remove MkDocs site/ directory
 	rm -rf site/
-
-.PHONY: build
-build: clean ## Builds source and wheel package.
-	python -m flit build --no-setup-py
-
-.PHONY: publish
-publish: ## Publish package to Python Package Index (PyPI).
-	 python -m flit publish --no-setup-py
-
-.PHONY: release
-release: clean tox clean build publish clean ## Release package: test, build and publish to PyPI.

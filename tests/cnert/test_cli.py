@@ -1,9 +1,8 @@
 # tests/cnert/test_cli.py
 
-from typer.testing import CliRunner
-
 from cnert import __version__
 from cnert.cli import app
+from typer.testing import CliRunner
 
 runner = CliRunner()
 

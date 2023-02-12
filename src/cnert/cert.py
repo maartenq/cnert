@@ -16,13 +16,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 
-def _idna_encode(string: str) -> str:
+def _idna_encode(_string: str) -> str:
     for prefix in ["*.", "."]:
-        if string.startswith(prefix):
-            string = string[len(prefix) :]  # noqa E203
-            bytes = prefix.encode("ascii") + idna.encode(string, uts46=True)
-            return bytes.decode("ascii")
-    return idna.encode(string, uts46=True).decode("ascii")
+        if _string.startswith(prefix):
+            _string = _string[len(prefix) :]
+            _bytes = prefix.encode("ascii") + idna.encode(_string, uts46=True)
+            return _bytes.decode("ascii")
+    return idna.encode(_string, uts46=True).decode("ascii")
 
 
 def _identity_string_to_x509(identity: str) -> x509.GeneralName:
@@ -87,38 +87,38 @@ def _x509_name(**name_attrs: str) -> x509.Name:
     Takes optional Name Attribute key/values as keyword arguments.
     """
 
-    _DEFAULT_NAME_ATTRS: Dict[str, str] = dict(
-        BUSINESS_CATEGORY="Business Category",
-        COMMON_NAME="Common Name",
-        COUNTRY_NAME="US",
-        DN_QUALIFIER="DN qualifier",
-        DOMAIN_COMPONENT="Domain Component",
-        EMAIL_ADDRESS="info@example.com",
-        GENERATION_QUALIFIER="Generation Qualifier",
-        GIVEN_NAME="Given Name",
-        INN="INN",
-        JURISDICTION_COUNTRY_NAME="US",
-        JURISDICTION_LOCALITY_NAME="Jurisdiction Locality Name",
-        JURISDICTION_STATE_OR_PROVINCE_NAME=(
+    _DEFAULT_NAME_ATTRS: Dict[str, str] = {
+        "BUSINESS_CATEGORY": "Business Category",
+        "COMMON_NAME": "Common Name",
+        "COUNTRY_NAME": "US",
+        "DN_QUALIFIER": "DN qualifier",
+        "DOMAIN_COMPONENT": "Domain Component",
+        "EMAIL_ADDRESS": "info@example.com",
+        "GENERATION_QUALIFIER": "Generation Qualifier",
+        "GIVEN_NAME": "Given Name",
+        "INN": "INN",
+        "JURISDICTION_COUNTRY_NAME": "US",
+        "JURISDICTION_LOCALITY_NAME": "Jurisdiction Locality Name",
+        "JURISDICTION_STATE_OR_PROVINCE_NAME": (
             "Jurisdiction State or Province Name"
         ),
-        LOCALITY_NAME="Locality Name",
-        OGRN="OGRN",
-        ORGANIZATIONAL_UNIT_NAME="Organizational unit_name",
-        ORGANIZATION_NAME="Organization Name",
-        POSTAL_ADDRESS="Postal Address",
-        POSTAL_CODE="Postal Code",
-        PSEUDONYM="Pseudonym",
-        SERIAL_NUMBER="42",
-        SNILS="SNILS",
-        STATE_OR_PROVINCE_NAME="State or Province Name",
-        STREET_ADDRESS="Street Address",
-        SURNAME="Surname",
-        TITLE="Title",
-        UNSTRUCTURED_NAME="unstructuredName",
-        USER_ID="User ID",
-        X500_UNIQUE_IDENTIFIER="X500 Unique Identifier",
-    )
+        "LOCALITY_NAME": "Locality Name",
+        "OGRN": "OGRN",
+        "ORGANIZATIONAL_UNIT_NAME": "Organizational unit_name",
+        "ORGANIZATION_NAME": "Organization Name",
+        "POSTAL_ADDRESS": "Postal Address",
+        "POSTAL_CODE": "Postal Code",
+        "PSEUDONYM": "Pseudonym",
+        "SERIAL_NUMBER": "42",
+        "SNILS": "SNILS",
+        "STATE_OR_PROVINCE_NAME": "State or Province Name",
+        "STREET_ADDRESS": "Street Address",
+        "SURNAME": "Surname",
+        "TITLE": "Title",
+        "UNSTRUCTURED_NAME": "unstructuredName",
+        "USER_ID": "User ID",
+        "X500_UNIQUE_IDENTIFIER": "X500 Unique Identifier",
+    }
     name_attrs = {key.upper(): value for key, value in name_attrs.items()}
     if not name_attrs:
         name_attrs = _DEFAULT_NAME_ATTRS.copy()
@@ -246,17 +246,16 @@ class CA:
 
     def __init__(
         self,
-        subject_attrs: Dict[str, str] = dict(ORGANIZATION_NAME="Root CA"),
+        subject_attrs: Optional[Dict[str, str]] = None,
         parent: Optional[_Cert] = None,
         not_valid_before: Optional[datetime] = None,
         not_valid_after: Optional[datetime] = None,
         path_length: int = 9,
     ) -> None:
+        if subject_attrs is None:
+            subject_attrs = {"ORGANIZATION_NAME": "Root CA"}
         now = datetime.utcnow()
-        if parent:
-            issuer_attrs = parent.subject_attrs
-        else:
-            issuer_attrs = subject_attrs
+        issuer_attrs = parent.subject_attrs if parent else subject_attrs
 
         self.cert = _Cert(
             subject_attrs=subject_attrs,
@@ -271,11 +270,10 @@ class CA:
         pass
 
     def create_intermediate(
-        self,
-        subject_attrs: Dict[str, str] = dict(
-            ORGANIZATION_NAME="Intermediate CA"
-        ),
+        self, subject_attrs: Optional[Dict[str, str]] = None
     ) -> "CA":
+        if subject_attrs is None:
+            subject_attrs = {"ORGANIZATION_NAME": "Intermediate CA"}
         if self.cert.path_length == 0:
             raise ValueError("Can't create intermediate CA: path length is 0")
         return CA(
