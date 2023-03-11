@@ -1,37 +1,19 @@
-# cnert/__init__.py
+# cnert/cnert.py
 
-"""
-Cnert makes TLS private keys, CSRs, private CAs and certificates.
-"""
+"""cnert.py package for cnert."""
 
-__version__ = "0.1.4"
-__title__ = "Cnert"
-__description__ = (
-    "Cnert makes TLS private keys, CSRs, private CAs and certificates."
-)
-__uri__ = "https://github.com/maartenq/cnert"
-__author__ = "Maarten"
-__email__ = "ikmaarten@gmail.com"
-__license__ = "MIT or Apache License, Version 2.0"
-__copyright__ = "Copyright (c) 2021  Maarten"
-
-
-from datetime import datetime, timedelta
-
+# from datetime import datetime, timedelta
 # from ipaddress import ip_address, ip_network
 from typing import Optional
 
 # import idna
 from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 
+# from cryptography.hazmat.backends import default_backend
 #
-# from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives import serialization
-
+# # from cryptography.hazmat.primitives import hashes, serialization
 # from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-
+# from cryptography.hazmat.primitives.asymmetric import rsa
 # from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 from cryptography.x509.oid import NameOID
 
@@ -43,8 +25,8 @@ from cryptography.x509.oid import NameOID
 #                    idna.encode(_string, uts46=True)
 #             return _bytes.decode("ascii")
 #     return idna.encode(_string, uts46=True).decode("ascii")
-
-
+#
+#
 # def _identity_string_to_x509(identity: str) -> x509.GeneralName:
 #     try:
 #         return x509.IPAddress(ip_address(identity))
@@ -55,8 +37,29 @@ from cryptography.x509.oid import NameOID
 #             if "@" in identity:
 #                 return x509.RFC822Name(identity)
 #             return x509.DNSName(_idna_encode(identity))
-
-
+#
+#
+# def _private_key(
+#     key_size: int = 2048,
+#     public_exponent: int = 65537,
+# ) -> rsa.RSAPrivateKey:
+#     private_key = rsa.generate_private_key(
+#         public_exponent=public_exponent,
+#         key_size=key_size,
+#         backend=default_backend(),
+#     )
+#     return private_key
+#
+#
+# def _private_key_pem(private_key: rsa.RSAPrivateKey) -> bytes:
+#     pem = private_key.private_bytes(
+#         serialization.Encoding.PEM,
+#         format=serialization.PrivateFormat.TraditionalOpenSSL,
+#         encryption_algorithm=serialization.NoEncryption(),
+#     )
+#     return pem
+#
+#
 # def _key_usage(
 #     content_commitment: bool = False,
 #     crl_sign: bool = False,
@@ -79,13 +82,13 @@ from cryptography.x509.oid import NameOID
 #         key_cert_sign=key_cert_sign,
 #         key_encipherment=key_encipherment,
 #     )
-
-
+#
+#
 # def _x509_name(**name_attrs: str) -> x509.Name:
 #     """
 #     Takes optional Name Attribute key/values as keyword arguments.
 #     """
-
+#
 #     _DEFAULT_NAME_ATTRS: Dict[str, str] = {
 #         "BUSINESS_CATEGORY:str = "Business Category",
 #         "COMMON_NAME:str = "Common Name",
@@ -127,8 +130,8 @@ from cryptography.x509.oid import NameOID
 #             for (key, value) in name_attrs.items()
 #         ]
 #     )
-
-
+#
+#
 # def _add_ca_extension(
 #     cert_builder: x509.CertificateBuilder,
 # ) -> x509.CertificateBuilder:
@@ -140,8 +143,8 @@ from cryptography.x509.oid import NameOID
 #         ),
 #         critical=True,
 #     )
-
-
+#
+#
 # def _add_leaf_cert_extensions(
 #     cert_builder: x509.CertificateBuilder,
 # ) -> x509.CertificateBuilder:
@@ -158,8 +161,8 @@ from cryptography.x509.oid import NameOID
 #         ),
 #         critical=True,
 #     )
-
-
+#
+#
 # def _add_subject_alt_name_extension(
 #     cert_builder: x509.CertificateBuilder,
 #     *identities: str,
@@ -170,8 +173,8 @@ from cryptography.x509.oid import NameOID
 #         ),
 #         critical=True,
 #     )
-
-
+#
+#
 # def _cert_builder(
 #     *identities: str,
 #     subject: x509.Name,
@@ -210,8 +213,8 @@ from cryptography.x509.oid import NameOID
 #             cert_builder, *identities
 #         )
 #     return cert_builder
-
-
+#
+#
 # class _Cert:
 #     public_key: rsa.RSAPublicKey
 #     private_key: rsa.RSAPrivateKey
@@ -236,12 +239,12 @@ from cryptography.x509.oid import NameOID
 #         self.private_key_pem = _private_key_pem(self.private_key)
 
 
-class Freezer:
-    """
-    Freeze any class such that instantiated objects become immutable.
+class SlotsFreezer:
+    """Freeze any class such that instantiated
+    objects become immutable. Also use __slots__ for speed.
     """
 
-    __slots__: list[str] = []
+    __slots__: list = []
     _frozen: bool = False
 
     def __init__(self):
@@ -260,105 +263,28 @@ class Freezer:
         object.__setattr__(self, *args, **kwargs)
 
 
-class NameAttrs(Freezer):
+class NameAttrs(SlotsFreezer):
     """
     Valid x509.NameAttribute given as arguments will be added as instance
     variables.
     """
 
-    BUSINESS_CATEGORY: str
-    COMMON_NAME: str
-    COUNTRY_NAME: str
-    DN_QUALIFIER: str
-    DOMAIN_COMPONENT: str
-    EMAIL_ADDRESS: str
-    GENERATION_QUALIFIER: str
-    GIVEN_NAME: str
-    INN: str
-    JURISDICTION_COUNTRY_NAME: str
-    JURISDICTION_LOCALITY_NAME: str
-    JURISDICTION_STATE_OR_PROVINCE_NAME: str
-    LOCALITY_NAME: str
-    OGRN: str
-    ORGANIZATIONAL_UNIT_NAME: str
-    ORGANIZATION_NAME: str
-    POSTAL_ADDRESS: str
-    POSTAL_CODE: str
-    PSEUDONYM: str
-    SERIAL_NUMBER: str
-    SNILS: str
-    STATE_OR_PROVINCE_NAME: str
-    STREET_ADDRESS: str
-    SURNAME: str
-    TITLE: str
-    UNSTRUCTURED_NAME: str
-    USER_ID: str
-    X500_UNIQUE_IDENTIFIER: str
-
-    def __init__(self, **kwargs) -> None:
-        self._name_oids: list[x509.NameAttribute] = []
-        keys = list(kwargs.keys())
-        keys.sort()
-        for key in keys:
+    def __init__(self, *args, **kwargs):
+        self._name_oids = []
+        for key, value in kwargs.items():
             self._name_oids.append(
-                x509.NameAttribute(getattr(NameOID, key), kwargs[key])
+                x509.NameAttribute(getattr(NameOID, key), value)
             )
-            setattr(self, key, kwargs[key])
+            setattr(self, key, value)
         super().__init__()
 
-    @property
-    def x509_name(self) -> x509.Name:
+    def get_x509_name(self) -> x509.Name:
         return x509.Name(self._name_oids)
-
-    def list_attrs(self) -> list[str]:
-        return sorted(self.__class__.__dict__["__annotations__"].keys())
-
-    def __eq__(self, other) -> bool:
-        return self._name_oids == other._name_oids
-
-    def __str__(self) -> str:
-        return self.x509_name.rfc4514_string()
 
 
 class Cert:
-    def __init__(
-        self,
-        subject_attrs: NameAttrs,
-        issuer_attrs: NameAttrs,
-        path_length: int = 0,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-        parent: Optional["Cert"] = None,
-    ) -> None:
-        if not_valid_before is None:
-            not_valid_before = datetime.utcnow()
-
-        if not_valid_after is None:
-            not_valid_after = not_valid_before + timedelta(weeks=13)
-
+    def __init__(self, subject_attrs: NameAttrs):
         self.subject_attrs = subject_attrs
-        self.issuer_attrs = issuer_attrs
-        self.path_length = path_length
-        self.parent = parent
-        self.not_valid_before = not_valid_before
-        self.not_valid_after = not_valid_after
-        self.private_key, self.public_key, self.pem = self._gen_private_key()
-
-    @staticmethod
-    def _gen_private_key(
-        key_size: int = 2048, public_exponent: int = 65537
-    ) -> tuple[rsa.RSAPrivateKey, rsa.RSAPublicKey, bytes]:
-        key = rsa.generate_private_key(
-            public_exponent=public_exponent,
-            key_size=key_size,
-            backend=default_backend(),
-        )
-        pem = key.private_bytes(
-            serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-        return (key, key.public_key(), pem)
 
 
 class CA:
@@ -368,100 +294,11 @@ class CA:
 
     """
 
-    def __init__(
-        self,
-        subject_attrs: Optional[NameAttrs] = None,
-        issuer_attrs: Optional[NameAttrs] = None,
-        path_length: int = 9,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-        parent: Optional["Cert"] = None,
-        intermediate_num: int = 0,
-    ):
-        self.intermediate_num = intermediate_num
-
-        # A CA is self signed so it is its own issuer.
-        if self.is_ca and subject_attrs != issuer_attrs:
-            raise ValueError(
-                "Can't create CA: issuer attributes must be same "
-                "as subject attributes"
-            )
-
+    def __init__(self, subject_attrs: Optional[NameAttrs] = None):
         if subject_attrs is None:
-            subject_attrs = NameAttrs(ORGANIZATION_NAME="Root CA")
-
-        if issuer_attrs is None:
-            issuer_attrs = subject_attrs
-
-        self.cert = Cert(
-            subject_attrs=subject_attrs,
-            issuer_attrs=issuer_attrs,
-            path_length=path_length,
-            not_valid_before=not_valid_before,
-            not_valid_after=not_valid_after,
-            parent=parent,
-        )
-
-    @property
-    def is_ca(self):
-        return self.intermediate_num < 1
-
-    @property
-    def is_intermediate(self):
-        return self.intermediate_num > 0
-
-    def issue_intermediate(
-        self,
-        subject_attrs: Optional[NameAttrs] = None,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-    ) -> "CA":
-        if self.cert.path_length == 0:
-            raise ValueError("Can't create intermediate CA: path length is 0")
-        intermediate_num = self.intermediate_num + 1
-        return CA(
-            subject_attrs=subject_attrs
-            or NameAttrs(
-                ORGANIZATION_NAME=f"CA Intermediate {intermediate_num}"
-            ),
-            issuer_attrs=self.cert.subject_attrs,
-            path_length=self.cert.path_length - 1,
-            not_valid_before=not_valid_before or self.cert.not_valid_before,
-            not_valid_after=not_valid_after or self.cert.not_valid_after,
-            parent=self.cert,
-            intermediate_num=intermediate_num,
-        )
-
-    def issue_cert(
-        self,
-        subject_attrs: Optional[NameAttrs] = None,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-    ) -> "Cert":
-        if subject_attrs is None:
-            subject_attrs = NameAttrs(COMMON_NAME="example.com")
-        return Cert(
-            subject_attrs=subject_attrs,
-            issuer_attrs=self.cert.subject_attrs,
-            not_valid_before=not_valid_before,
-            not_valid_after=not_valid_after,
-            parent=self.cert,
-        )
-
-    # def create_intermediate(
-    #     self, subject_attrs: Optional[Dict[str, str]] = None
-    # ) -> "CA":
-    #     if subject_attrs is None:
-    #         subject_attrs = {"ORGANIZATION_NAME:str = "Intermediate CA"}
-    #     if self.cert.path_length == 0:
-    #         raise ValueError(
-    #            "Can't create intermediate CA: path length is 0"
-    #           )
-    #     return CA(
-    #         subject_attrs=subject_attrs,
-    #         parent=self.cert,
-    #         path_length=self.cert.path_length - 1,
-    #     )
+            self.cert = Cert(subject_attrs=NameAttrs(COMMON_NAME="CA"))
+        else:
+            self.cert = Cert(subject_attrs=subject_attrs)
 
 
 #

@@ -17,7 +17,17 @@ check: ## Run code quality tools.
 .PHONY: test
 test: ## Test the code with pytest
 	@echo "🚀 Testing code: Running pytest"
-	@poetry run pytest --cov --cov-config=pyproject.toml --cov-report=xml
+	@poetry run pytest --verbose --cov --cov-config=pyproject.toml --cov-report=xml
+
+.PHONY: htmlcov
+htmlcov: ## Create HTML coverage report
+	@echo "🚀 Create HTML coverage report"
+	@poetry run coverage html
+
+.PHONY: cov
+cov: test htmlcov ## Test, make coverage html and open
+	@echo "🚀 Openeing coverage report"
+	open htmlcov/index.html
 
 .PHONY: build
 build: clean-build ## Build wheel file using poetry
