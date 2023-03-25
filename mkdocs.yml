@@ -1,3 +1,21 @@
 ---
-site_name: "Cnert"
-theme: readthedocs
+
+site_name: Cnert
+theme:
+  name: readthedocs
+
+nav:
+  - index.md
+  - cnert.md
+
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_bases: false
+            show_source: false
+            heading_level: 3

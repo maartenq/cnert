@@ -2,8 +2,19 @@
 install: ## Install the poetry environment and install the pre-commit hooks
 	@echo "🚀 Creating virtual environment using pyenv and poetry"
 	@poetry install
-	@ poetry run pre-commit install
+	@poetry run pre-commit install
 	@poetry shell
+
+docs/requirements.txt: poetry.lock
+	@echo "🚀 Create or update docs/requirements.txt"
+	@poetry export --with=docs --without-hashes --output=docs/requirements.txt
+
+poetry.lock: pyproject.toml
+	@echo "🚀 Create or update poetry.lock"
+	@poetry update
+
+.PHONY: update
+update: docs/requirements.txt ## Update the dependencies as according to the pyproject.toml file
 
 .PHONY: check
 check: ## Run code quality tools.

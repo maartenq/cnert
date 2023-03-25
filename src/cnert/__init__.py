@@ -4,7 +4,7 @@
 Cnert makes TLS private keys, CSRs, private CAs and certificates.
 """
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 __title__ = "Cnert"
 __description__ = (
     "Cnert makes TLS private keys, CSRs, private CAs and certificates."
@@ -262,8 +262,25 @@ class Freezer:
 
 class NameAttrs(Freezer):
     """
-    Valid x509.NameAttribute given as arguments will be added as instance
-    variables.
+    An object for storing (and freezing) Name Attributes for Subject Name
+    Attributes and Issuer Name Attributes.
+
+    Accepts any valid x509.NameAttribute as key arguments with arbitrary string
+    values.
+
+    Has methods for returning initialized attributes in a dict and for
+    returning a `cryptography.x509.Name`
+
+    There is alse a method for showing the allowed attributes.
+
+    Examples:
+        >>> subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+        >>> subject_attrs.COMMON_NAME
+        'example.com'
+        >>> subject_attrs.dict_
+        {'COMMON_NAME': 'example.com'}
+        >>> subject_attrs.x509_name
+        <Name(CN=example.com)>
     """
 
     BUSINESS_CATEGORY: str
@@ -297,6 +314,7 @@ class NameAttrs(Freezer):
 
     def __init__(self, **kwargs) -> None:
         self._name_oids: list[x509.NameAttribute] = []
+        self.dict_: dict[str, str] = {}
         keys = list(kwargs.keys())
         keys.sort()
         for key in keys:
@@ -304,23 +322,93 @@ class NameAttrs(Freezer):
                 x509.NameAttribute(getattr(NameOID, key), kwargs[key])
             )
             setattr(self, key, kwargs[key])
+            self.dict_[key] = kwargs[key]
         super().__init__()
 
-    @property
     def x509_name(self) -> x509.Name:
+        """
+        Examples:
+            >>> subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+            >>> subject_attrs.x509_name()
+            <Name(CN=example.com)>
+
+        Returns:
+            A `cryptography.x509.Name`
+        """
         return x509.Name(self._name_oids)
 
-    def list_attrs(self) -> list[str]:
+    def allowed_keys(self) -> list[str]:
+        """
+        Returns a list of allowed key arguments.
+
+        Examples:
+            >>> cnert.NameAttrs().allowed_keys()
+            ['BUSINESS_CATEGORY',
+             'COMMON_NAME',
+             'COUNTRY_NAME',
+             'DN_QUALIFIER',
+             'DOMAIN_COMPONENT',
+             'EMAIL_ADDRESS',
+             'GENERATION_QUALIFIER',
+             'GIVEN_NAME',
+             'INN',
+             'JURISDICTION_COUNTRY_NAME',
+             'JURISDICTION_LOCALITY_NAME',
+             'JURISDICTION_STATE_OR_PROVINCE_NAME',
+             'LOCALITY_NAME',
+             'OGRN',
+             'ORGANIZATIONAL_UNIT_NAME',
+             'ORGANIZATION_NAME',
+             'POSTAL_ADDRESS',
+             'POSTAL_CODE',
+             'PSEUDONYM',
+             'SERIAL_NUMBER',
+             'SNILS',
+             'STATE_OR_PROVINCE_NAME',
+             'STREET_ADDRESS',
+             'SURNAME',
+             'TITLE',
+             'UNSTRUCTURED_NAME',
+             'USER_ID',
+             'X500_UNIQUE_IDENTIFIER']
+
+        Returns:
+            A list of valid key attributes.
+        """
         return sorted(self.__class__.__dict__["__annotations__"].keys())
 
     def __eq__(self, other) -> bool:
-        return self._name_oids == other._name_oids
+        return self.dict_ == other.dict_
 
     def __str__(self) -> str:
-        return self.x509_name.rfc4514_string()
+        return self.x509_name().rfc4514_string()
+
+    def __repr__(self) -> str:
+        args = ", ".join(f'{x[0]}="{x[1]}"' for x in self.dict_.items())
+        return f"NameAttrs({args})"
 
 
-class Cert:
+class _Cert:
+    """
+    A _Cert object.
+
+    This object is returned by [`cnert.CA().issue_cert()`][cnert.CA.issue_cert]
+
+    Examples:
+
+        >>> ca = CA()
+        >>> cert = ca.issue_cert()
+        >>> cert.subject_attrs
+        NameAttrs(COMMON_NAME="example.com")
+        >>> cert.issuer_attrs
+        NameAttrs(ORGANIZATION_NAME="Root CA")
+        >>> cert.not_valid_before
+        datetime.datetime(2023, 3, 24, 23, 56, 55, 901545)
+        >>> cert.not_valid_after
+        datetime.datetime(2023, 6, 23, 23, 56, 55, 901545)
+
+    """
+
     def __init__(
         self,
         subject_attrs: NameAttrs,
@@ -328,7 +416,6 @@ class Cert:
         path_length: int = 0,
         not_valid_before: Optional[datetime] = None,
         not_valid_after: Optional[datetime] = None,
-        parent: Optional["Cert"] = None,
     ) -> None:
         if not_valid_before is None:
             not_valid_before = datetime.utcnow()
@@ -339,10 +426,13 @@ class Cert:
         self.subject_attrs = subject_attrs
         self.issuer_attrs = issuer_attrs
         self.path_length = path_length
-        self.parent = parent
         self.not_valid_before = not_valid_before
         self.not_valid_after = not_valid_after
-        self.private_key, self.public_key, self.pem = self._gen_private_key()
+        (
+            self.private_key,
+            self.public_key,
+            self.private_key_pem,
+        ) = self._gen_private_key()
 
     @staticmethod
     def _gen_private_key(
@@ -360,11 +450,27 @@ class Cert:
         )
         return (key, key.public_key(), pem)
 
+    def __str__(self) -> str:
+        return f"Certificate {self.subject_attrs}"
+
 
 class CA:
-    """A Certificate Authority
+    """
+    A CA object.
 
-    A root CA or an intermediate CA.
+    Examples:
+        >>> ca = cnert.CA()
+        >>> ca.is_root_ca
+        True
+        >>> ca.is_intermediate_ca
+        False
+        >>> ca.parent is None
+        True
+
+    Parameters:
+        subject_attrs: Subject Name Attributes
+        not_valid_before: CA not valid before date
+        not_valid_after: CA not valid after date
 
     """
 
@@ -375,13 +481,14 @@ class CA:
         path_length: int = 9,
         not_valid_before: Optional[datetime] = None,
         not_valid_after: Optional[datetime] = None,
-        parent: Optional["Cert"] = None,
+        parent: Optional["CA"] = None,
         intermediate_num: int = 0,
-    ):
+    ) -> None:
         self.intermediate_num = intermediate_num
+        self.parent = parent
 
         # A CA is self signed so it is its own issuer.
-        if self.is_ca and subject_attrs != issuer_attrs:
+        if self.is_root_ca and subject_attrs != issuer_attrs:
             raise ValueError(
                 "Can't create CA: issuer attributes must be same "
                 "as subject attributes"
@@ -393,21 +500,39 @@ class CA:
         if issuer_attrs is None:
             issuer_attrs = subject_attrs
 
-        self.cert = Cert(
+        self.cert = _Cert(
             subject_attrs=subject_attrs,
             issuer_attrs=issuer_attrs,
             path_length=path_length,
             not_valid_before=not_valid_before,
             not_valid_after=not_valid_after,
-            parent=parent,
         )
 
+    def __str__(self) -> str:
+        return f"CA {self.cert.subject_attrs}"
+
     @property
-    def is_ca(self):
+    def is_root_ca(self) -> bool:
+        """
+        Examples:
+            >>> ca = CA()
+            >>> ca.is_root_ca
+            True
+            >>> intermediate = ca.issue_intermediate()
+            >>> intermediate.is_root_ca
+            False
+
+        Returns:
+            Whether CA is a root CA or not.
+        """
         return self.intermediate_num < 1
 
     @property
-    def is_intermediate(self):
+    def is_intermediate_ca(self) -> bool:
+        """
+        Returns:
+            Whether CA is a intermediate CA or not.
+        """
         return self.intermediate_num > 0
 
     def issue_intermediate(
@@ -428,7 +553,7 @@ class CA:
             path_length=self.cert.path_length - 1,
             not_valid_before=not_valid_before or self.cert.not_valid_before,
             not_valid_after=not_valid_after or self.cert.not_valid_after,
-            parent=self.cert,
+            parent=self,
             intermediate_num=intermediate_num,
         )
 
@@ -437,15 +562,32 @@ class CA:
         subject_attrs: Optional[NameAttrs] = None,
         not_valid_before: Optional[datetime] = None,
         not_valid_after: Optional[datetime] = None,
-    ) -> "Cert":
+    ) -> "_Cert":
+        """
+        Issues a certificate
+
+        Examples:
+            >>> ca = CA()
+            >>> ca.issue_cert()
+            <cnert.Cert at 0x107f87f50>
+
+        Parameters:
+            subject_attrs: Subject Name Attributes
+            not_valid_before: Certificate not valid before date
+            not_valid_after: Certificate not valid after date
+
+        Returns:
+            A _Cert object.
+
+        """
+
         if subject_attrs is None:
             subject_attrs = NameAttrs(COMMON_NAME="example.com")
-        return Cert(
+        return _Cert(
             subject_attrs=subject_attrs,
             issuer_attrs=self.cert.subject_attrs,
             not_valid_before=not_valid_before,
             not_valid_after=not_valid_after,
-            parent=self.cert,
         )
 
     # def create_intermediate(

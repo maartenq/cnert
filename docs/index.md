@@ -1,70 +1,64 @@
-# Welcome to Cnert's documentation!
+# Cnert - TLS Certificates for testing
 
-Cnert creates TLS private keys, CSRs, private CAs, intermediate CAs and
-certificates for testing purposes.
+Cnert is trying to be a simple API for creating TLS Certificates testing
+purposes.
+
+[cnert.CA][] makes CAs, intermediate CAs and [certificates][cnert._Cert] and
+has several methods for introspection.
+
+Cnert has currently pre-alpha development status and is not (fully) working.
 
 
 ## Usage
 
-Create a CA:
-    ```python
-    ca = cnert.CA()
-    ```
+### Create a root CA
 
-Issue a certificate:
-    ```python
-    ca = cnert.CA()
-    cert = ca.issue_cert()
-    cert.pem_str
-    ```
+    >>> import cnert
+    >>> ca = cnert.CA()
 
-Issue certificate from a intermediate:
-    ```python
-    ca = cnert.CA()
-    intermediate = ca.issue_intermediate()
-    cert = intermediate.issue_cert()
-    ```
+    >>> ca.is_root_ca
+    True
 
-Create a CA with custom subject attributes:
-    ```python
-    subject_attr = cnert.NameAttrs(
-        COMMON_NAME="My common name",
-        COUNTRY_NAME="AQ",
-        EMAIL_ADDRESS="someone@example.com",
-    )
-    ca = cnert.CA(subject_attrs=subject_attrs)
-    assert ca.cert.COMMON_NAME == "My common name"
-    assert ca.cert.COUNTRY_NAME == "AQ"
-    assert ca.cert.EMAIL_ADDRESS == "EMAIL_ADDRESS"
+    >>> ca.is_intermediate_ca
+    False
 
-    ca.x509_name
+    >>> ca.parent is None
+    True
 
-    ```
+### Create an intermediate CA
 
-<!-- Create CSR: -->
-<!--     ```python -->
-<!--     csr = cnert.CSR() -->
-<!--     ``` -->
+    >>> intermediate = ca.issue_intermediate()
+    >>> intermediate.is_intermediate_ca
+    True
 
-<!-- Create a certificate from a CSR: -->
-<!--     ```python -->
-<!--     csr = cnert.CSR() -->
-<!--     ca = cnert.CA() -->
-<!--     cert = ca.issue_cert(csr=csr) -->
-<!--     ``` -->
+    >>> intermediate.is_root_ca
+    False
+
+    >>> intermediate.parent is ca
+    True
 
 
-Our homemade Certificate Authority (CA) has certificate and it's properties are
-available for testing purposes, with some defaults:
+###  Inspect the CA's certificate
 
-    ```python
-    assert ca.cert.subject_attrs.COMMON_NAME == "CA"
-    ```
+    >>> ca.cert
+    <cnert.Cert at 0x112a14c50>
 
-Set *Name Attributes* at initialisation:
+    >>> ca.cert.subject_attrs
+    NameAttrs(ORGANIZATION_NAME="Root CA")
 
-    ```python
-    subject_attrs = cnert.NameAttrs(COMMON_NAME="My CA")
-    ca = cnert.CA(subject_attrs=subject_attrs)
-    assert ca.cert.subject_attrs.COMMON_NAME = "My CA"
-    ```
+    >>> ca.cert.ca.cert.issuer_attrs
+    NameAttrs(ORGANIZATION_NAME="Root CA")
+
+    >>> ca.cert.not_valid_before
+    datetime.datetime(2023, 3, 24, 21, 27, 50, 579389
+
+    >>> ca.cert.not_valid_after
+    datetime.datetime(2023, 6, 23, 20, 20, 47, 999034)
+
+
+###  Issue a cert from a CA
+
+    >>> cert = ca.issue_cert()
+
+    >>> cert.subject_attrs
+    NameAttrs(COMMON_NAME="example.com")

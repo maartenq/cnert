@@ -4,8 +4,11 @@
 # from typing import Dict
 
 
+from datetime import datetime, timedelta
+
 import cnert
 import pytest
+from cryptography import x509
 
 # from cnert.cert import (
 #     _add_ca_extension,
@@ -18,7 +21,6 @@ import pytest
 #     _private_key_pem,
 #     _x509_name,
 # )
-# from cryptography import x509
 # from cryptography.hazmat.backends import default_backend
 # from cryptography.hazmat.primitives.asymmetric import rsa
 # from cryptography.x509 import ObjectIdentifier, extensions, general_name
@@ -27,7 +29,7 @@ import pytest
 #     KeyUsage,
 #     SubjectAlternativeName,
 # )
-# from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import NameOID
 
 
 @pytest.fixture
@@ -114,7 +116,112 @@ def test_frozen_attrs_del_attr():
     assert "This object is frozen!" in str(exc.value)
 
 
-def test_name_attrs_valid(default_name_attrs):
+def test_name_attrs__repr__with_default_name_attrs_names(default_name_attrs):
+    name_attrs = cnert.NameAttrs(**default_name_attrs)
+    assert repr(name_attrs) == (
+        "NameAttrs("
+        'BUSINESS_CATEGORY="business category", '
+        'COMMON_NAME="common name", '
+        'COUNTRY_NAME="AQ", '
+        'DN_QUALIFIER="DN qualifier", '
+        'DOMAIN_COMPONENT="domain component", '
+        'EMAIL_ADDRESS="example@example.com", '
+        'GENERATION_QUALIFIER="generation qualifier", '
+        'GIVEN_NAME="given name", '
+        'INN="INN", '
+        'JURISDICTION_COUNTRY_NAME="AQ", '
+        'JURISDICTION_LOCALITY_NAME="jurisdiction locality Name", '
+        "JURISDICTION_STATE_OR_PROVINCE_NAME="
+        '"jurisdiction state or province name", '
+        'LOCALITY_NAME="locality name", '
+        'OGRN="OGRN", '
+        'ORGANIZATIONAL_UNIT_NAME="organizational unit_name", '
+        'ORGANIZATION_NAME="organization name", '
+        'POSTAL_ADDRESS="postal address", '
+        'POSTAL_CODE="postal code", '
+        'PSEUDONYM="pseudonym", '
+        'SERIAL_NUMBER="42", '
+        'SNILS="SNILS", '
+        'STATE_OR_PROVINCE_NAME="state or province name", '
+        'STREET_ADDRESS="street address", '
+        'SURNAME="surname", '
+        'TITLE="title", '
+        'UNSTRUCTURED_NAME="unstructuredName", '
+        'USER_ID="user ID", '
+        'X500_UNIQUE_IDENTIFIER="X500 unique identifier"'
+        ")"
+    )
+
+
+def test_name_attrs__repr__is_alphabetically_ordered():
+    name_attrs = cnert.NameAttrs(
+        COMMON_NAME="example.com",
+        STREET_ADDRESS="Getreidegasse 9",
+        LOCALITY_NAME="Salzburg",
+        COUNTRY_NAME="AT",
+        EMAIL_ADDRESS="info@example.com",
+    )
+
+    assert repr(name_attrs) == (
+        'NameAttrs(COMMON_NAME="example.com", COUNTRY_NAME="AT", '
+        'EMAIL_ADDRESS="info@example.com", LOCALITY_NAME="Salzburg", '
+        'STREET_ADDRESS="Getreidegasse 9")'
+    )
+
+
+def test_name_attrs__str__with_default_name_attrs_names(default_name_attrs):
+    name_attrs = cnert.NameAttrs(**default_name_attrs)
+    assert str(name_attrs) == (
+        "2.5.4.45=X500 unique identifier,"
+        "UID=user ID,"
+        "1.2.840.113549.1.9.2=unstructuredName,"
+        "2.5.4.12=title,"
+        "2.5.4.4=surname,"
+        "STREET=street address,"
+        "ST=state or province name,"
+        "1.2.643.100.3=SNILS,"
+        "2.5.4.5=42,"
+        "2.5.4.65=pseudonym,"
+        "2.5.4.17=postal code,"
+        "2.5.4.16=postal address,"
+        "O=organization name,"
+        "OU=organizational unit_name,"
+        "1.2.643.100.1=OGRN,"
+        "L=locality name,"
+        "1.3.6.1.4.1.311.60.2.1.2=jurisdiction state or province name,"
+        "1.3.6.1.4.1.311.60.2.1.1=jurisdiction locality Name,"
+        "1.3.6.1.4.1.311.60.2.1.3=AQ,"
+        "1.2.643.3.131.1.1=INN,"
+        "2.5.4.42=given name,"
+        "2.5.4.44=generation qualifier,"
+        "1.2.840.113549.1.9.1=example@example.com,"
+        "DC=domain component,"
+        "2.5.4.46=DN qualifier,"
+        "C=AQ,"
+        "CN=common name,"
+        "2.5.4.15=business category"
+    )
+
+
+def test_name_attrs__str__is_reversed_alphabetically_ordered():
+    name_attrs = cnert.NameAttrs(
+        COMMON_NAME="example.com",
+        STREET_ADDRESS="Getreidegasse 9",
+        LOCALITY_NAME="Salzburg",
+        COUNTRY_NAME="AT",
+        EMAIL_ADDRESS="info@example.com",
+    )
+
+    assert str(name_attrs) == (
+        "STREET=Getreidegasse 9,"
+        "L=Salzburg,"
+        "1.2.840.113549.1.9.1=info@example.com,"
+        "C=AT,"
+        "CN=example.com"
+    )
+
+
+def test_name_attrs_are_valid(default_name_attrs):
     name_attrs = cnert.NameAttrs(**default_name_attrs)
     for key, value in default_name_attrs.items():
         assert getattr(name_attrs, key) == value
@@ -132,7 +239,7 @@ def test_name_attr_invalid():
 
 def test_name_attrs_list():
     name_attrs = cnert.NameAttrs()
-    assert name_attrs.list_attrs() == [
+    assert name_attrs.allowed_keys() == [
         "BUSINESS_CATEGORY",
         "COMMON_NAME",
         "COUNTRY_NAME",
@@ -164,22 +271,45 @@ def test_name_attrs_list():
     ]
 
 
+def test_name_attr_x509():
+    name_attrs = cnert.NameAttrs(COMMON_NAME="my common name")
+    assert name_attrs.x509_name() == x509.Name(
+        [x509.NameAttribute(NameOID.COMMON_NAME, "my common name")]
+    )
+
+
 def test_name_attr_x509_str():
     name_attrs = cnert.NameAttrs(COMMON_NAME="my common name")
     assert str(name_attrs) == "CN=my common name"
 
 
-def test_ca_is_ca_not_intemediate():
+def test_ca__str__():
     ca = cnert.CA()
-    assert ca.is_ca
-    assert not ca.is_intermediate
+    assert str(ca) == "CA O=Root CA"
 
 
-def test_intermediate_is_intermediate_not_ca():
+def test_ca_is_root_ca_not_intemediate():
+    ca = cnert.CA()
+    assert ca.is_root_ca
+    assert not ca.is_intermediate_ca
+
+
+def test_ca_parent_is_none():
+    ca = cnert.CA()
+    assert ca.parent is None
+
+
+def test_intermediate_is_intermediate_ca_not_ca():
     ca = cnert.CA()
     intermediate = ca.issue_intermediate()
-    assert intermediate.is_intermediate
-    assert not intermediate.is_ca
+    assert intermediate.is_intermediate_ca
+    assert not intermediate.is_root_ca
+
+
+def test_intermediate_parent_is_ca():
+    ca = cnert.CA()
+    intermediate = ca.issue_intermediate()
+    assert intermediate.parent is ca
 
 
 def test_ca_default_name_attr_common_name():
@@ -193,8 +323,8 @@ def test_ca_subject_attrs_is_issue_attrs():
 
 
 def test_ca_subject_attrs_is_not_issue_attrs():
-    subject_attrs = cnert.NameAttrs(COMMON_NAME="a")
-    issuer_attrs = cnert.NameAttrs(COMMON_NAME="b")
+    subject_attrs = cnert.NameAttrs(ORGANIZATION_NAME="A")
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="B")
     with pytest.raises(Exception) as exc:
         cnert.CA(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert exc.type == ValueError
@@ -246,6 +376,33 @@ def test_ca_issue_cert_default_common_name_is_www_example_com():
     subject_attrs = cnert.NameAttrs(COMMON_NAME="www.example.com")
     cert = ca.issue_cert(subject_attrs=subject_attrs)
     assert cert.subject_attrs.COMMON_NAME == "www.example.com"
+
+
+def test_cert__str__():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(
+        COMMON_NAME="www.example.com",
+        COUNTRY_NAME="AQ",
+        ORGANIZATION_NAME="Acme",
+    )
+    cert = cnert._Cert(subject_attrs, issuer_attrs)
+    assert str(cert) == "Certificate O=Acme,C=AQ,CN=www.example.com"
+
+
+def test_cert_default_not_valid_before():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    before = datetime.now()
+    cert = cnert._Cert(subject_attrs, issuer_attrs)
+    assert cert.not_valid_before - before < timedelta(minutes=1)
+
+
+def test_cert_default_not_valid_after():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    after = datetime.now() + timedelta(weeks=13)
+    cert = cnert._Cert(subject_attrs, issuer_attrs)
+    assert cert.not_valid_after - after < timedelta(minutes=1)
 
 
 # def test__idna_encode():
