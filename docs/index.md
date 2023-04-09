@@ -25,7 +25,7 @@ Cnert has currently pre-alpha development status and is not (fully) working.
     >>> ca.parent is None
     True
 
-### Create an intermediate CA
+### Issue an intermediate CA
 
     >>> intermediate = ca.issue_intermediate()
     >>> intermediate.is_intermediate_ca
@@ -54,6 +54,27 @@ Cnert has currently pre-alpha development status and is not (fully) working.
 
     >>> ca.cert.not_valid_after
     datetime.datetime(2023, 6, 23, 20, 20, 47, 999034)
+
+    >>> ca.cert.not_valid_after
+    datetime.datetime(2023, 6, 23, 20, 20, 47, 999034)
+
+    >>> ca.cert.path_length
+    9
+
+    >>> ca.cert.public_key.key_size
+    2048
+
+
+###  Inspect the Intermediate CA
+
+    >>> intermediate.cert.subject_attrs
+    NameAttrs(ORGANIZATION_NAME="CA Intermediate 1")
+
+    >>> intermediate.cert.ca.cert.issuer_attrs
+    NameAttrs(ORGANIZATION_NAME="Root CA")
+
+    >>> intermediate.cert.path_length
+    8
 
 
 ###  Issue a cert from a CA

@@ -1,34 +1,14 @@
 # tests/cnert/test_cli.py
 
-# import ipaddress
-# from typing import Dict
-
-
+import ipaddress
 from datetime import datetime, timedelta
 
 import cnert
 import pytest
 from cryptography import x509
-
-# from cnert.cert import (
-#     _add_ca_extension,
-#     _add_leaf_cert_extensions,
-#     _add_subject_alt_name_extension,
-#     _identity_string_to_x509,
-#     _idna_encode,
-#     _key_usage,
-#     _private_key,
-#     _private_key_pem,
-#     _x509_name,
-# )
-# from cryptography.hazmat.backends import default_backend
-# from cryptography.hazmat.primitives.asymmetric import rsa
-# from cryptography.x509 import ObjectIdentifier, extensions, general_name
-# from cryptography.x509.extensions import (
-#     ExtendedKeyUsage,
-#     KeyUsage,
-#     SubjectAlternativeName,
-# )
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509 import ObjectIdentifier, extensions, general_name
 from cryptography.x509.oid import NameOID
 
 
@@ -322,18 +302,6 @@ def test_ca_subject_attrs_is_issue_attrs():
     assert ca.cert.subject_attrs == ca.cert.issuer_attrs
 
 
-def test_ca_subject_attrs_is_not_issue_attrs():
-    subject_attrs = cnert.NameAttrs(ORGANIZATION_NAME="A")
-    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="B")
-    with pytest.raises(Exception) as exc:
-        cnert.CA(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
-    assert exc.type == ValueError
-    assert (
-        "Can't create CA: issuer attributes must be same as subject attributes"
-        in str(exc.value)
-    )
-
-
 def test_ca_issue_intermediate_first():
     ca = cnert.CA()
     intermediate_1 = ca.issue_intermediate()
@@ -353,6 +321,18 @@ def test_ca_issue_intermediate_second():
         == "CA Intermediate 2"
     )
     assert intermediate_2.cert.path_length == 7
+
+
+def test_ca_issue_intermediate_third():
+    ca = cnert.CA()
+    intermediate_1 = ca.issue_intermediate()
+    intermediate_2 = intermediate_1.issue_intermediate()
+    intermediate_3 = intermediate_2.issue_intermediate()
+    assert (
+        intermediate_3.cert.subject_attrs.ORGANIZATION_NAME
+        == "CA Intermediate 3"
+    )
+    assert intermediate_3.cert.path_length == 6
 
 
 def test_ca_issue_intermediate_max_path_lenght():
@@ -385,7 +365,7 @@ def test_cert__str__():
         COUNTRY_NAME="AQ",
         ORGANIZATION_NAME="Acme",
     )
-    cert = cnert._Cert(subject_attrs, issuer_attrs)
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert str(cert) == "Certificate O=Acme,C=AQ,CN=www.example.com"
 
 
@@ -393,7 +373,7 @@ def test_cert_default_not_valid_before():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     before = datetime.now()
-    cert = cnert._Cert(subject_attrs, issuer_attrs)
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.not_valid_before - before < timedelta(minutes=1)
 
 
@@ -401,185 +381,259 @@ def test_cert_default_not_valid_after():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     after = datetime.now() + timedelta(weeks=13)
-    cert = cnert._Cert(subject_attrs, issuer_attrs)
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.not_valid_after - after < timedelta(minutes=1)
 
 
-# def test__idna_encode():
-#     assert _idna_encode("*.example.com") == "*.example.com"
-#     assert _idna_encode("*.éxample.com") == "*.xn--xample-9ua.com"
-#     assert _idna_encode("Example.com") == "example.com"
-#
-#
-# def test__identity_string_to_x509_IPAddress():
-#     x509_IP = _identity_string_to_x509("198.51.100.1")
-#     assert type(x509_IP) is general_name.IPAddress
-#     assert x509_IP.value == ipaddress.IPv4Address("198.51.100.1")
-#
-#
-# def test__identity_string_to_x509_NetWork():
-#     x509_network = _identity_string_to_x509("198.51.100.0/24")
-#     assert type(x509_network) is general_name.IPAddress
-#     assert x509_network.value == ipaddress.IPv4Network("198.51.100.0/24")
-#
-#
-# def test__identity_string_to_x509_RFC822Name():
-#     x509_email_addr = _identity_string_to_x509("harry@example.com")
-#     assert type(x509_email_addr) is general_name.RFC822Name
-#     assert x509_email_addr.value == "harry@example.com"
-#
-#
-# def test__identity_string_to_x509_DNSName():
-#     x509_dns_name = _identity_string_to_x509("host.example.com")
-#     assert type(x509_dns_name) is general_name.DNSName
-#     assert x509_dns_name.value == "host.example.com"
-#
-#
-# def test__private_key():
-#     private_key = _private_key()
-#     assert private_key.key_size == 2048
-#
-#
-# def test__private_key_pem():
-#     pem = _private_key_pem(
-#         rsa.generate_private_key(
-#             public_exponent=65537,
-#             key_size=2048,
-#             backend=default_backend(),
-#         )
-#     )
-#     assert b"-----BEGIN RSA PRIVATE KEY-----" in pem
-#     assert b"-----END RSA PRIVATE KEY-----" in pem
-#
-#
-# def test__key_usage_defaults():
-#     key_usage = _key_usage()
-#     assert type(key_usage) is extensions.KeyUsage
-#     assert key_usage.content_commitment is False
-#     assert key_usage.crl_sign is False
-#     assert key_usage.data_encipherment is False
-#     assert key_usage.digital_signature is True
-#     # assert key_usage.decipher_only is False
-#     # assert key_usage.encipher_only is False
-#     assert key_usage.key_agreement is False
-#     assert key_usage.key_cert_sign is False
-#     assert key_usage.key_encipherment is True
-#
-#
-# def test__key_usage_ca():
-#     key_usage = _key_usage(
-#         digital_signature=True,
-#         key_cert_sign=True,
-#         crl_sign=True,
-#     )
-#     assert type(key_usage) is extensions.KeyUsage
-#     assert key_usage.content_commitment is False
-#     assert key_usage.crl_sign is True
-#     assert key_usage.data_encipherment is False
-#     assert key_usage.digital_signature is True
-#     # assert key_usage.decipher_only is False
-#     # assert key_usage.encipher_only is False
-#     assert key_usage.key_agreement is False
-#     assert key_usage.key_cert_sign is True
-#     assert key_usage.key_encipherment is True
-#
-#
-# def test_X509Name_default(default_name_attrs):
-#     assert _x509_name() == x509.Name(
-#         [
-#             x509.NameAttribute(getattr(NameOID, key), value)
-#             for (key, value) in default_name_attrs.items()
-#         ]
-#     )
-#
-#
-# def test_X509Name_with_key_arguments():
-#     NAME_ATTRS: Dict[str, str] = {
-#         "COMMON_NAME": "Jansen",
-#         "COUNTRY_NAME": "NL",
-#         "EMAIL_ADDRESS": "harry@example.com",
-#         "GIVEN_NAME": "Harry de Groot",
-#     }
-#     assert _x509_name(**NAME_ATTRS) == x509.Name(
-#         [
-#             x509.NameAttribute(getattr(NameOID, key), value)
-#             for (key, value) in NAME_ATTRS.items()
-#         ]
-#     )
-#
-#
-# def test_X509Name_with_lower_key_arguments():
-#     NAME_ATTRS: Dict[str, str] = {
-#         "common_name": "Jansen",
-#         "country_name": "NL",
-#         "email_address": "harry@example.com",
-#         "given_name": "Harry de Groot",
-#     }
-#     assert _x509_name(**NAME_ATTRS) == x509.Name(
-#         [
-#             x509.NameAttribute(getattr(NameOID, key.upper()), value)
-#             for (key, value) in NAME_ATTRS.items()
-#         ]
-#     )
-#
-#
-# def test_X509Name_raises_exception():
-#     with pytest.raises(AttributeError):
-#         _x509_name(NON_EXISTING_NAME_ATTR="should not exist")
-#
-#
-# def test__add_ca_extention():
-#     builder = _add_ca_extension(x509.CertificateBuilder())
-#     key_usage = builder._extensions[0].value
-#     assert type(key_usage) is extensions.KeyUsage
-#     assert key_usage.content_commitment is False
-#     assert key_usage.crl_sign is True
-#     assert key_usage.data_encipherment is False
-#     assert key_usage.digital_signature is True
-#     # assert key_usage.decipher_only is False
-#     # assert key_usage.encipher_only is False
-#     assert key_usage.key_agreement is False
-#     assert key_usage.key_cert_sign is True
-#     assert key_usage.key_encipherment is True
-#
-#
-# def test__add_leaf_cert_extensions_key_usage():
-#     builder = _add_leaf_cert_extensions(x509.CertificateBuilder())
-#     key_usage = builder._extensions[0].value
-#     assert type(key_usage) is KeyUsage
-#     assert key_usage.content_commitment is False
-#     assert key_usage.crl_sign is False
-#     assert key_usage.data_encipherment is False
-#     assert key_usage.digital_signature is True
-#     # assert key_usage.decipher_only is False
-#     # assert key_usage.encipher_only is False
-#     assert key_usage.key_agreement is False
-#     assert key_usage.key_cert_sign is False
-#     assert key_usage.key_encipherment is True
-#
-#
-# def test__add_leaf_cert_extensions_extended_key_usage():
-#     builder = _add_leaf_cert_extensions(x509.CertificateBuilder())
-#     ext_key_usage = builder._extensions[1].value
-#     assert type(ext_key_usage) is ExtendedKeyUsage
-#     assert list(ext_key_usage) == [
-#         ObjectIdentifier("1.3.6.1.5.5.7.3.2"),
-#         ObjectIdentifier("1.3.6.1.5.5.7.3.1"),
-#         ObjectIdentifier("1.3.6.1.5.5.7.3.3"),
-#     ]
-#
-#
-# def test__add_subject_alt_name_extension():
-#     hostnames = [
-#         "host1.example.com",
-#         "host2.example.com",
-#     ]
-#     builder = _add_subject_alt_name_extension(
-#         x509.CertificateBuilder(),
-#         *hostnames,
-#     )
-#     ext_alt_name = builder._extensions[0].value
-#     assert type(ext_alt_name) is SubjectAlternativeName
-#     assert list(ext_alt_name) == [
-#         general_name.DNSName(hostname) for hostname in hostnames
-#     ]
+def test_cert_private_key_size():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    assert cert.private_key.key_size == 2048
+
+
+def test_cert_private_key_pem_PKCS1():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    assert cert.private_key_pem_PKCS1.startswith(
+        b"-----BEGIN RSA PRIVATE KEY-----\n"
+    )
+    assert cert.private_key_pem_PKCS1.endswith(
+        b"\n-----END RSA PRIVATE KEY-----\n"
+    )
+
+
+def test_cert_private_key_pem():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    assert cert.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
+    assert cert.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+
+
+def test__idna_encode():
+    builder = cnert._CertBuilder()
+    assert builder._idna_encode("*.example.com") == "*.example.com"
+    assert builder._idna_encode("*.éxample.com") == "*.xn--xample-9ua.com"
+    assert builder._idna_encode("Example.com") == "example.com"
+
+
+def test__identity_string_to_x509_IPAddress():
+    builder = cnert._CertBuilder()
+    x509_IP = builder._identity_string_to_x509("198.51.100.1")
+    assert type(x509_IP) is general_name.IPAddress
+    assert x509_IP.value == ipaddress.IPv4Address("198.51.100.1")
+
+
+def test__identity_string_to_x509_NetWork():
+    builder = cnert._CertBuilder()
+    x509_network = builder._identity_string_to_x509("198.51.100.0/24")
+    assert type(x509_network) is general_name.IPAddress
+    assert x509_network.value == ipaddress.IPv4Network("198.51.100.0/24")
+
+
+def test__identity_string_to_x509_RFC822Name():
+    builder = cnert._CertBuilder()
+    x509_email_addr = builder._identity_string_to_x509("harry@example.com")
+    assert type(x509_email_addr) is general_name.RFC822Name
+    assert x509_email_addr.value == "harry@example.com"
+
+
+def test__identity_string_to_x509_DNSName():
+    builder = cnert._CertBuilder()
+    x509_dns_name = builder._identity_string_to_x509("host.example.com")
+    assert type(x509_dns_name) is general_name.DNSName
+    assert x509_dns_name.value == "host.example.com"
+
+
+def test__key_usage_defaults():
+    builder = cnert._CertBuilder()
+    key_usage = builder._key_usage()
+    assert type(key_usage) is extensions.KeyUsage
+    assert key_usage.content_commitment is False
+    assert key_usage.crl_sign is False
+    assert key_usage.data_encipherment is False
+    assert key_usage.digital_signature is True
+    assert key_usage.key_agreement is False
+    assert key_usage.key_cert_sign is False
+    assert key_usage.key_encipherment is True
+
+
+def test__key_usage_ca():
+    builder = cnert._CertBuilder()
+    key_usage = builder._key_usage(
+        digital_signature=True,
+        key_cert_sign=True,
+        crl_sign=True,
+    )
+    assert type(key_usage) is extensions.KeyUsage
+    assert key_usage.content_commitment is False
+    assert key_usage.crl_sign is True
+    assert key_usage.data_encipherment is False
+    assert key_usage.digital_signature is True
+    assert key_usage.key_agreement is False
+    assert key_usage.key_cert_sign is True
+    assert key_usage.key_encipherment is True
+
+
+def test__CertBuilder__add_ca_extention():
+    cert_builder = cnert._CertBuilder()
+    assert len(cert_builder.builder._extensions) == 0
+    cert_builder._add_ca_extension()
+    assert len(cert_builder.builder._extensions) == 1
+    key_usage = cert_builder.builder._extensions[0]
+    assert type(key_usage.value) is extensions.KeyUsage
+    assert key_usage.oid.dotted_string == "2.5.29.15"
+    assert key_usage.value.content_commitment is False
+    assert key_usage.value.crl_sign is True
+    assert key_usage.value.data_encipherment is False
+    assert key_usage.value.digital_signature is True
+    assert key_usage.value.key_agreement is False
+    assert key_usage.value.key_cert_sign is True
+    assert key_usage.value.key_encipherment is True
+
+
+def test__CertBuilder__add_leaf_cert_extensions_key_usage():
+    cert_builder = cnert._CertBuilder()
+    assert len(cert_builder.builder._extensions) == 0
+    cert_builder._add_leaf_cert_extension()
+    assert len(cert_builder.builder._extensions) == 2
+    key_usage = cert_builder.builder._extensions[0]
+    assert type(key_usage.value) is extensions.KeyUsage
+    assert key_usage.oid.dotted_string == "2.5.29.15"
+    assert key_usage.value.content_commitment is False
+    assert key_usage.value.crl_sign is False
+    assert key_usage.value.data_encipherment is False
+    assert key_usage.value.digital_signature is True
+    assert key_usage.value.key_agreement is False
+    assert key_usage.value.key_cert_sign is False
+    assert key_usage.value.key_encipherment is True
+
+
+def test__CertBuilder__add_leaf_cert_extensions_extended_key_usage():
+    cert_builder = cnert._CertBuilder()
+    assert len(cert_builder.builder._extensions) == 0
+    cert_builder._add_leaf_cert_extension()
+    assert len(cert_builder.builder._extensions) == 2
+    ext_key_usage = cert_builder.builder._extensions[1]
+    assert type(ext_key_usage.value) is extensions.ExtendedKeyUsage
+    assert ext_key_usage.oid.dotted_string == "2.5.29.37"
+    assert list(ext_key_usage.value) == [
+        ObjectIdentifier("1.3.6.1.5.5.7.3.2"),
+        ObjectIdentifier("1.3.6.1.5.5.7.3.1"),
+        ObjectIdentifier("1.3.6.1.5.5.7.3.3"),
+    ]
+
+
+def test__CertBuilder__add_subject_alt_name_extension():
+    cert_builder = cnert._CertBuilder()
+    sans = (
+        "host1.example.com",
+        "host2.example.com",
+    )
+    cert_builder._add_subject_alt_name_extension(*sans)
+    assert len(cert_builder.builder._extensions) == 1
+    sub_alt_name = cert_builder.builder._extensions[0]
+    assert sub_alt_name.oid.dotted_string == "2.5.29.17"
+    assert type(sub_alt_name.value) is extensions.SubjectAlternativeName
+    assert list(sub_alt_name.value) == [
+        general_name.DNSName(san) for san in sans
+    ]
+
+
+def test__CertBuilder_build():
+    public_key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=default_backend()
+    ).public_key()
+    cert_builder = cnert._CertBuilder()
+    cert_builder.build(
+        sans=(),
+        subject_attrs_X509_name=x509.Name(
+            [x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CA")]
+        ),
+        issuer_attrs_X509_name=x509.Name(
+            [x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CA")]
+        ),
+        serial_number=1,
+        not_valid_before=datetime.now(),
+        not_valid_after=datetime.now() + timedelta(days=13),
+        is_ca=True,
+        path_length=8,
+        public_key=public_key,
+    )
+    assert len(cert_builder.builder._extensions) == 3
+    sub_key_id = cert_builder.builder._extensions[0]
+    assert sub_key_id.oid.dotted_string == "2.5.29.14"
+    assert type(sub_key_id.value) is extensions.SubjectKeyIdentifier
+    assert (
+        sub_key_id.value.digest
+        == x509.SubjectKeyIdentifier.from_public_key(public_key).digest
+    )
+    basic_constraints = cert_builder.builder._extensions[1]
+    assert basic_constraints.oid.dotted_string == "2.5.29.19"
+    assert type(basic_constraints.value) is extensions.BasicConstraints
+    assert basic_constraints.value.ca is True
+    assert basic_constraints.value.path_length == 8
+    key_usage = cert_builder.builder._extensions[2]
+    assert type(key_usage.value) is extensions.KeyUsage
+    assert key_usage.oid.dotted_string == "2.5.29.15"
+    assert key_usage.value.content_commitment is False
+    assert key_usage.value.crl_sign is True
+    assert key_usage.value.data_encipherment is False
+    assert key_usage.value.digital_signature is True
+    assert key_usage.value.key_agreement is False
+    assert key_usage.value.key_cert_sign is True
+    assert key_usage.value.key_encipherment is True
+
+
+def test__CertBuilder_build_with_san():
+    public_key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=default_backend()
+    ).public_key()
+    sans = ("example.com", "www.example.com")
+    cert_builder = cnert._CertBuilder()
+    cert_builder.build(
+        sans=sans,
+        subject_attrs_X509_name=x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, "example.com")]
+        ),
+        issuer_attrs_X509_name=x509.Name(
+            [x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CA")]
+        ),
+        serial_number=1,
+        not_valid_before=datetime.now(),
+        not_valid_after=datetime.now() + timedelta(days=13),
+        is_ca=True,
+        path_length=8,
+        public_key=public_key,
+    )
+    assert len(cert_builder.builder._extensions) == 4
+    sub_key_id = cert_builder.builder._extensions[0]
+    assert sub_key_id.oid.dotted_string == "2.5.29.14"
+    assert type(sub_key_id.value) is extensions.SubjectKeyIdentifier
+    assert (
+        sub_key_id.value.digest
+        == x509.SubjectKeyIdentifier.from_public_key(public_key).digest
+    )
+    basic_constraints = cert_builder.builder._extensions[1]
+    assert basic_constraints.oid.dotted_string == "2.5.29.19"
+    assert type(basic_constraints.value) is extensions.BasicConstraints
+    assert basic_constraints.value.ca is True
+    assert basic_constraints.value.path_length == 8
+    key_usage = cert_builder.builder._extensions[2]
+    assert type(key_usage.value) is extensions.KeyUsage
+    assert key_usage.oid.dotted_string == "2.5.29.15"
+    assert key_usage.value.content_commitment is False
+    assert key_usage.value.crl_sign is True
+    assert key_usage.value.data_encipherment is False
+    assert key_usage.value.digital_signature is True
+    assert key_usage.value.key_agreement is False
+    assert key_usage.value.key_cert_sign is True
+    assert key_usage.value.key_encipherment is True
+    sub_alt_name = cert_builder.builder._extensions[3]
+    assert sub_alt_name.oid.dotted_string == "2.5.29.17"
+    assert type(sub_alt_name.value) is extensions.SubjectAlternativeName
+    assert list(sub_alt_name.value) == [
+        general_name.DNSName(san) for san in sans
+    ]
