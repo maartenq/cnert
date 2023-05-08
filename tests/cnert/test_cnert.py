@@ -48,6 +48,13 @@ def default_name_attrs():
     }
 
 
+@pytest.fixture
+def public_key():
+    return rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=default_backend()
+    ).public_key()
+
+
 def test_frozen_attrs_change_attr():
     class Frozen(cnert.Freezer):
         def __init__(self, slot1):
@@ -98,8 +105,8 @@ def test_frozen_attrs_del_attr():
 
 def test_name_attrs__repr__with_default_name_attrs_names(default_name_attrs):
     name_attrs = cnert.NameAttrs(**default_name_attrs)
-    assert repr(name_attrs) == (
-        "NameAttrs("
+    assert (
+        repr(name_attrs) == "NameAttrs("
         'BUSINESS_CATEGORY="business category", '
         'COMMON_NAME="common name", '
         'COUNTRY_NAME="AQ", '
@@ -142,8 +149,9 @@ def test_name_attrs__repr__is_alphabetically_ordered():
         EMAIL_ADDRESS="info@example.com",
     )
 
-    assert repr(name_attrs) == (
-        'NameAttrs(COMMON_NAME="example.com", COUNTRY_NAME="AT", '
+    assert (
+        repr(name_attrs)
+        == 'NameAttrs(COMMON_NAME="example.com", COUNTRY_NAME="AT", '
         'EMAIL_ADDRESS="info@example.com", LOCALITY_NAME="Salzburg", '
         'STREET_ADDRESS="Getreidegasse 9")'
     )
@@ -151,8 +159,8 @@ def test_name_attrs__repr__is_alphabetically_ordered():
 
 def test_name_attrs__str__with_default_name_attrs_names(default_name_attrs):
     name_attrs = cnert.NameAttrs(**default_name_attrs)
-    assert str(name_attrs) == (
-        "2.5.4.45=X500 unique identifier,"
+    assert (
+        str(name_attrs) == "2.5.4.45=X500 unique identifier,"
         "UID=user ID,"
         "1.2.840.113549.1.9.2=unstructuredName,"
         "2.5.4.12=title,"
@@ -192,8 +200,8 @@ def test_name_attrs__str__is_reversed_alphabetically_ordered():
         EMAIL_ADDRESS="info@example.com",
     )
 
-    assert str(name_attrs) == (
-        "STREET=Getreidegasse 9,"
+    assert (
+        str(name_attrs) == "STREET=Getreidegasse 9,"
         "L=Salzburg,"
         "1.2.840.113549.1.9.1=info@example.com,"
         "C=AT,"
@@ -263,18 +271,18 @@ def test_name_attr_x509_str():
     assert str(name_attrs) == "CN=my common name"
 
 
-def test_ca__str__():
+def test_CA__str__():
     ca = cnert.CA()
     assert str(ca) == "CA O=Root CA"
 
 
-def test_ca_is_root_ca_not_intemediate():
+def test_CA_is_root_ca_not_intemediate():
     ca = cnert.CA()
     assert ca.is_root_ca
     assert not ca.is_intermediate_ca
 
 
-def test_ca_parent_is_none():
+def test_CA_parent_is_none():
     ca = cnert.CA()
     assert ca.parent is None
 
@@ -292,17 +300,17 @@ def test_intermediate_parent_is_ca():
     assert intermediate.parent is ca
 
 
-def test_ca_default_name_attr_common_name():
+def test_CA_default_name_attr_common_name():
     ca = cnert.CA()
     assert ca.cert.subject_attrs.ORGANIZATION_NAME == "Root CA"
 
 
-def test_ca_subject_attrs_is_issue_attrs():
+def test_CA_subject_attrs_is_issue_attrs():
     ca = cnert.CA()
     assert ca.cert.subject_attrs == ca.cert.issuer_attrs
 
 
-def test_ca_issue_intermediate_first():
+def test_CA_issue_intermediate_first():
     ca = cnert.CA()
     intermediate_1 = ca.issue_intermediate()
     assert (
@@ -312,7 +320,7 @@ def test_ca_issue_intermediate_first():
     assert intermediate_1.cert.path_length == 8
 
 
-def test_ca_issue_intermediate_second():
+def test_CA_issue_intermediate_second():
     ca = cnert.CA()
     intermediate_1 = ca.issue_intermediate()
     intermediate_2 = intermediate_1.issue_intermediate()
@@ -323,7 +331,7 @@ def test_ca_issue_intermediate_second():
     assert intermediate_2.cert.path_length == 7
 
 
-def test_ca_issue_intermediate_third():
+def test_CA_issue_intermediate_third():
     ca = cnert.CA()
     intermediate_1 = ca.issue_intermediate()
     intermediate_2 = intermediate_1.issue_intermediate()
@@ -335,7 +343,7 @@ def test_ca_issue_intermediate_third():
     assert intermediate_3.cert.path_length == 6
 
 
-def test_ca_issue_intermediate_max_path_lenght():
+def test_CA_issue_intermediate_max_path_lenght():
     ca = cnert.CA(path_length=2)
     intermediate_1 = ca.issue_intermediate()
     intermediate_2 = intermediate_1.issue_intermediate()
@@ -345,20 +353,27 @@ def test_ca_issue_intermediate_max_path_lenght():
     assert "Can't create intermediate CA: path length is 0" in str(exc.value)
 
 
-def test_ca_issue_cert_default_common_name_is_example_com():
+def test_CA_issue_cert_default_common_name_is_example_com():
     ca = cnert.CA()
     cert = ca.issue_cert()
     assert cert.subject_attrs.COMMON_NAME == "example.com"
 
 
-def test_ca_issue_cert_default_common_name_is_www_example_com():
+def test_CA_issue_cert_default_common_name_is_www_example_com():
     ca = cnert.CA()
     subject_attrs = cnert.NameAttrs(COMMON_NAME="www.example.com")
     cert = ca.issue_cert(subject_attrs=subject_attrs)
     assert cert.subject_attrs.COMMON_NAME == "www.example.com"
 
 
-def test_cert__str__():
+def test_CA_issue_cert_sans():
+    ca = cnert.CA()
+    sans = ("www.example.com", "example.com")
+    cert = ca.issue_cert(*sans)
+    assert cert.subject_attrs.COMMON_NAME == "www.example.com"
+
+
+def test__Cert__str__():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(
         COMMON_NAME="www.example.com",
@@ -369,7 +384,7 @@ def test_cert__str__():
     assert str(cert) == "Certificate O=Acme,C=AQ,CN=www.example.com"
 
 
-def test_cert_default_not_valid_before():
+def test__Cert_default_not_valid_before():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     before = datetime.now()
@@ -377,7 +392,7 @@ def test_cert_default_not_valid_before():
     assert cert.not_valid_before - before < timedelta(minutes=1)
 
 
-def test_cert_default_not_valid_after():
+def test__Cert_default_not_valid_after():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     after = datetime.now() + timedelta(weeks=13)
@@ -385,14 +400,14 @@ def test_cert_default_not_valid_after():
     assert cert.not_valid_after - after < timedelta(minutes=1)
 
 
-def test_cert_private_key_size():
+def test__Cert_private_key_size():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.private_key.key_size == 2048
 
 
-def test_cert_private_key_pem_PKCS1():
+def test__Cert_private_key_pem_PKCS1():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
@@ -404,7 +419,7 @@ def test_cert_private_key_pem_PKCS1():
     )
 
 
-def test_cert_private_key_pem():
+def test__Cert_private_key_pem():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
@@ -412,42 +427,61 @@ def test_cert_private_key_pem():
     assert cert.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
 
 
-def test__idna_encode():
+def test__Cert_serialnumber_is_42():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(
+        subject_attrs=subject_attrs,
+        issuer_attrs=issuer_attrs,
+        serial_number=42,
+    )
+    assert cert.serial_number == 42
+
+
+def test__Cert_serialnumber_is_random():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert1 = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert2 = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    assert cert1.serial_number != cert2.serial_number
+
+
+def test__CertBuilder__idna_encode():
     builder = cnert._CertBuilder()
     assert builder._idna_encode("*.example.com") == "*.example.com"
     assert builder._idna_encode("*.éxample.com") == "*.xn--xample-9ua.com"
     assert builder._idna_encode("Example.com") == "example.com"
 
 
-def test__identity_string_to_x509_IPAddress():
+def test__CertBuilder__identity_string_to_x509_IPAddress():
     builder = cnert._CertBuilder()
     x509_IP = builder._identity_string_to_x509("198.51.100.1")
     assert type(x509_IP) is general_name.IPAddress
     assert x509_IP.value == ipaddress.IPv4Address("198.51.100.1")
 
 
-def test__identity_string_to_x509_NetWork():
+def test__CertBuilder__identity_string_to_x509_NetWork():
     builder = cnert._CertBuilder()
     x509_network = builder._identity_string_to_x509("198.51.100.0/24")
     assert type(x509_network) is general_name.IPAddress
     assert x509_network.value == ipaddress.IPv4Network("198.51.100.0/24")
 
 
-def test__identity_string_to_x509_RFC822Name():
+def test__CertBuilder__identity_string_to_x509_RFC822Name():
     builder = cnert._CertBuilder()
     x509_email_addr = builder._identity_string_to_x509("harry@example.com")
     assert type(x509_email_addr) is general_name.RFC822Name
     assert x509_email_addr.value == "harry@example.com"
 
 
-def test__identity_string_to_x509_DNSName():
+def test__CertBuilder__identity_string_to_x509_DNSName():
     builder = cnert._CertBuilder()
     x509_dns_name = builder._identity_string_to_x509("host.example.com")
     assert type(x509_dns_name) is general_name.DNSName
     assert x509_dns_name.value == "host.example.com"
 
 
-def test__key_usage_defaults():
+def test__CertBuilder__key_usage_defaults():
     builder = cnert._CertBuilder()
     key_usage = builder._key_usage()
     assert type(key_usage) is extensions.KeyUsage
@@ -460,7 +494,7 @@ def test__key_usage_defaults():
     assert key_usage.key_encipherment is True
 
 
-def test__key_usage_ca():
+def test__CertBuilder__key_usage_ca():
     builder = cnert._CertBuilder()
     key_usage = builder._key_usage(
         digital_signature=True,
@@ -542,10 +576,7 @@ def test__CertBuilder__add_subject_alt_name_extension():
     ]
 
 
-def test__CertBuilder_build():
-    public_key = rsa.generate_private_key(
-        public_exponent=65537, key_size=2048, backend=default_backend()
-    ).public_key()
+def test__CertBuilder_build(public_key):
     cert_builder = cnert._CertBuilder()
     cert_builder.build(
         sans=(),
@@ -587,10 +618,7 @@ def test__CertBuilder_build():
     assert key_usage.value.key_encipherment is True
 
 
-def test__CertBuilder_build_with_san():
-    public_key = rsa.generate_private_key(
-        public_exponent=65537, key_size=2048, backend=default_backend()
-    ).public_key()
+def test__CertBuilder_build_with_san(public_key):
     sans = ("example.com", "www.example.com")
     cert_builder = cnert._CertBuilder()
     cert_builder.build(
