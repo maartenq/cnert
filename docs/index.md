@@ -1,10 +1,24 @@
 # Cnert - TLS Certificates for testing
 
-Cnert is trying to be a simple API for creating TLS Certificates testing
-purposes.
+Cnert is simple Python API for creating TLS Certificates and stuff for testing
+purposes (on top of [cryptography]).
 
-[cnert.CA][] makes CAs, intermediate CAs and [certificates][cnert._Cert] and
-has several methods for introspection.
+[cnert.CA][] makes it easy to create CAs, intermediate CAs. These CA objects
+can then issue directly [certificates][cnert._Cert].
+
+Cnert can make CSRs. CA objects also use these to issue certificates.
+
+Subject and Issuer Name Attributes, Subject Alternative Names, not_before_date
+and not_after_data can all be set.
+
+Cnert has different methods to introspect these.
+
+Cnert is made specially made for testing application that *do something* with
+TLS certificate and there for can make tailor made certificates for testing
+those apps.
+
+If you don't need that and you just need any "old" certificate, you probably
+better of with [trustme], trust me, or better: trust them.
 
 
 ## Usage
@@ -44,6 +58,12 @@ has several methods for introspection.
     >>> ca.cert.subject_attrs
     NameAttrs(ORGANIZATION_NAME="Root CA")
 
+    >>> ca.cert.subject_attrs.dict_
+    {'ORGANIZATION_NAME': 'Root CA'}
+
+    >>> ca.cert.subject_attrs.ORGANIZATION_NAME
+    'Root CA'
+
     >>> ca.cert.ca.cert.issuer_attrs
     NameAttrs(ORGANIZATION_NAME="Root CA")
 
@@ -82,11 +102,17 @@ has several methods for introspection.
     8
 
 
-###  Issue a cert from a CA
+###  Issue a cert from a CA (without CSR)
     >>> cert = ca.issue_cert()
 
     >>> cert.subject_attrs
     NameAttrs(COMMON_NAME="example.com")
+
+    >>> cert.subject_attrs.dict_
+    {'COMMON_NAME': 'example.com'}
+
+    >>> cert.subject_attrs.COMMON_NAME
+    'example.com'
 
     >>> cert.public_key
     <cryptography.hazmat.backends.openssl.rsa._RSAPublicKey object at 0x10361c150>
@@ -108,3 +134,24 @@ has several methods for introspection.
 
     >>> cert.certificate.extensions[4]
     <Extension(oid=<ObjectIdentifier(oid=2.5.29.17, name=subjectAltName)>, critical=True, value=<SubjectAlte rnativeName(<GeneralNames([<DNSName(value='www.example.com')>, <DNSName(value='host1.example.com')>, <DNSName(val ue='example.com')>])>)>)>
+
+###  Create a CSR
+
+    >>> csr = cnert.CSR()
+
+    >>> csr.pem
+    b'-----BEGIN CERTIFICATE REQUEST-----\nMIICWzCCAUMCAQAwFjEUMBIGA1UEAwwLZXhhbXBsZS5jb20wggEiMA0GCSqGS
+    Ib3\nDQEBAQUAA4IBDwAwggEKAoIBAQCzMgKx18z/G6WFc7ULVZS8gEHYW7jNmBM0wvIG\nCFkGu8UzPZL/dHpb4UAAA3kJ+MpYUYvjAuLxoh
+    6RarbkfChGSGvrJVzbNJtj0axL\n3ryyZ4WhSPFGQnLCze/CsnZbZV+a2B6kdnpb2xge+pa8owGSp3jQRlqFy03tBhAK\nrXlQ/XNQ9xN7CDM
+    8tHyPwJtl2wHegg7zHI/pjGGoXxfz1E6257+lgIL8lIooRpgu\nXPTp/ZCBumBlNjTtITcL8AUFuRfEAXvLRjVFXh4oOBBddQUNvGwKBUZDqC
+    zNoxRz\ntcd4ZeWL3BrwkRsKZ6gnV3rxhoIk3Bysf2ckeE1kKIdHQ+jHAgMBAAGgADANBgkq\nhkiG9w0BAQsFAAOCAQEAcintXa9ErBuCNw8
+    pNftb3ENKMC7+AhNQ6wchBvTZw6Kp\nA30kV/LEjSHSGoL1rNYweUqA2NXyKT3Nm8ey4cfgpqc1L+NQfO65Hbf+PODwgIcr\nAB5fW7xZwei/
+    weCoxYoznknv/9UN9IHT/3itFCO6XYdW7+TbbZ2Hfqo/fZHadZpQ\ntCndu3zTyEZfa2uw2OXapDgfpI16WiF1MGEf67b+8WoXfGW/bbzTfRy
+    qX4tfqS2I\nRATog8sQheC1zhh9LTGRYFSqEd15RPIDuXcc902YEXQrbniVF2TwV/qtKqqqcvZu\nPsOCzwRJq87N39XWH1EInVFfftHOTWn9
+    HatP/+RbrQ==\n-----END CERTIFICATE REQUEST-----\n'
+
+    >>> csr.subject_attrs.COMMON_NAME
+    'example.com'
+
+[cryptography]: https://cryptography.io/en/latest/
+[trustme]: https://github.com/python-trio/trustme

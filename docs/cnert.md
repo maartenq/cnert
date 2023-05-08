@@ -11,3 +11,7 @@
 ### Class cnert._Cert
 
 ::: cnert._Cert
+
+### Class cnert.CSR
+
+::: cnert.CSR

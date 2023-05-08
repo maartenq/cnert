@@ -7,6 +7,7 @@ import cnert
 import pytest
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import ObjectIdentifier, extensions, general_name
 from cryptography.x509.oid import NameOID
@@ -49,10 +50,71 @@ def default_name_attrs():
 
 
 @pytest.fixture
-def public_key():
+def private_key():
     return rsa.generate_private_key(
         public_exponent=65537, key_size=2048, backend=default_backend()
-    ).public_key()
+    )
+
+
+@pytest.fixture
+def public_key(private_key):
+    return private_key.public_key()
+
+
+@pytest.fixture
+def csr(private_key):
+    name = "example.com"
+    return (
+        x509.CertificateSigningRequestBuilder()
+        .subject_name(
+            x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+        )
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(name)]),
+            critical=False,
+        )
+        .sign(
+            private_key=private_key,
+            algorithm=hashes.SHA256(),
+            backend=default_backend(),
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "test_input,expected",
+    [
+        ("*.example.com", "*.example.com"),
+        ("*.éxample.com", "*.xn--xample-9ua.com"),
+        ("Example.com", "example.com"),
+    ],
+)
+def test_idna_encode(test_input, expected):
+    assert cnert.idna_encode(test_input) == expected
+
+
+def test_identity_string_to_x509_IPAddress():
+    x509_network = cnert.identity_string_to_x509("198.51.100.1")
+    assert type(x509_network) is general_name.IPAddress
+    assert x509_network.value == ipaddress.IPv4Address("198.51.100.1")
+
+
+def test_identity_string_to_x509_NetWork():
+    x509_network = cnert.identity_string_to_x509("198.51.100.0/24")
+    assert type(x509_network) is general_name.IPAddress
+    assert x509_network.value == ipaddress.IPv4Network("198.51.100.0/24")
+
+
+def test_dentity_string_to_x509_RFC822Name():
+    x509_email_addr = cnert.identity_string_to_x509("harry@example.com")
+    assert type(x509_email_addr) is general_name.RFC822Name
+    assert x509_email_addr.value == "harry@example.com"
+
+
+def test_identity_string_to_x509_DNSName():
+    x509_dns_name = cnert.identity_string_to_x509("host.example.com")
+    assert type(x509_dns_name) is general_name.DNSName
+    assert x509_dns_name.value == "host.example.com"
 
 
 def test_frozen_attrs_change_attr():
@@ -373,6 +435,21 @@ def test_CA_issue_cert_sans():
     assert cert.subject_attrs.COMMON_NAME == "www.example.com"
 
 
+def test_CA_issue_cert_with_csr(mocker, private_key):
+    sans = ("www.example.com", "example.com")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="www.example.com")
+    mock_CSR = mocker.patch("cnert.CSR")
+    mock_CSR.return_value.sans = sans
+    mock_CSR.return_value.subject_attrs = subject_attrs
+    mock_CSR.return_value.private_key = private_key
+    csr = cnert.CSR()
+    ca = cnert.CA()
+    cert = ca.issue_cert(csr=csr)
+    assert cert.subject_attrs.COMMON_NAME == "www.example.com"
+    assert cert.sans == sans
+    assert cert.private_key == private_key
+
+
 def test__Cert__str__():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(
@@ -419,12 +496,58 @@ def test__Cert_private_key_pem_PKCS1():
     )
 
 
+def test__Cert_private_key_pem_with_given_private_key(private_key):
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(
+        subject_attrs=subject_attrs,
+        issuer_attrs=issuer_attrs,
+        private_key=private_key,
+    )
+    assert cert.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
+    assert cert.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+
+
+def test__Cert_private_key_size_with_given_private_key(private_key):
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(
+        subject_attrs=subject_attrs,
+        issuer_attrs=issuer_attrs,
+        private_key=private_key,
+    )
+    assert cert.private_key.key_size == 2048
+
+
+def test__Cert_private_key_pem_PKCS1_with_given_private_key(private_key):
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(
+        subject_attrs=subject_attrs,
+        issuer_attrs=issuer_attrs,
+        private_key=private_key,
+    )
+    assert cert.private_key_pem_PKCS1.startswith(
+        b"-----BEGIN RSA PRIVATE KEY-----\n"
+    )
+    assert cert.private_key_pem_PKCS1.endswith(
+        b"\n-----END RSA PRIVATE KEY-----\n"
+    )
+
+
 def test__Cert_private_key_pem():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
     assert cert.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+
+
+def test__Cert_public_key():
+    issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
+    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    assert isinstance(cert.public_key, rsa.RSAPublicKey)
 
 
 def test__Cert_serialnumber_is_42():
@@ -444,41 +567,6 @@ def test__Cert_serialnumber_is_random():
     cert1 = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     cert2 = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert1.serial_number != cert2.serial_number
-
-
-def test__CertBuilder__idna_encode():
-    builder = cnert._CertBuilder()
-    assert builder._idna_encode("*.example.com") == "*.example.com"
-    assert builder._idna_encode("*.éxample.com") == "*.xn--xample-9ua.com"
-    assert builder._idna_encode("Example.com") == "example.com"
-
-
-def test__CertBuilder__identity_string_to_x509_IPAddress():
-    builder = cnert._CertBuilder()
-    x509_IP = builder._identity_string_to_x509("198.51.100.1")
-    assert type(x509_IP) is general_name.IPAddress
-    assert x509_IP.value == ipaddress.IPv4Address("198.51.100.1")
-
-
-def test__CertBuilder__identity_string_to_x509_NetWork():
-    builder = cnert._CertBuilder()
-    x509_network = builder._identity_string_to_x509("198.51.100.0/24")
-    assert type(x509_network) is general_name.IPAddress
-    assert x509_network.value == ipaddress.IPv4Network("198.51.100.0/24")
-
-
-def test__CertBuilder__identity_string_to_x509_RFC822Name():
-    builder = cnert._CertBuilder()
-    x509_email_addr = builder._identity_string_to_x509("harry@example.com")
-    assert type(x509_email_addr) is general_name.RFC822Name
-    assert x509_email_addr.value == "harry@example.com"
-
-
-def test__CertBuilder__identity_string_to_x509_DNSName():
-    builder = cnert._CertBuilder()
-    x509_dns_name = builder._identity_string_to_x509("host.example.com")
-    assert type(x509_dns_name) is general_name.DNSName
-    assert x509_dns_name.value == "host.example.com"
 
 
 def test__CertBuilder__key_usage_defaults():
@@ -665,3 +753,68 @@ def test__CertBuilder_build_with_san(public_key):
     assert list(sub_alt_name.value) == [
         general_name.DNSName(san) for san in sans
     ]
+
+
+def test_CSR_default_common_name_is_example_com():
+    csr = cnert.CSR()
+    assert csr.subject_attrs.COMMON_NAME == "example.com"
+
+
+def test_CSR_default_common_name_is_www_example_com():
+    subject_attrs = cnert.NameAttrs(COMMON_NAME="www.example.com")
+    csr = cnert.CSR(subject_attrs=subject_attrs)
+    assert csr.subject_attrs.COMMON_NAME == "www.example.com"
+
+
+def test_CSR_sans():
+    sans = ("www.example.com", "example.com")
+    csr = cnert.CSR(*sans)
+    assert csr.subject_attrs.COMMON_NAME == "www.example.com"
+
+
+def test_CSR_default_common_name_is_example_com_with_given_private_key(
+    private_key,
+):
+    csr = cnert.CSR(private_key=private_key)
+    assert csr.subject_attrs.COMMON_NAME == "example.com"
+
+
+def test_CSR__str__():
+    subject_attrs = cnert.NameAttrs(
+        COMMON_NAME="www.example.com",
+        COUNTRY_NAME="AQ",
+        ORGANIZATION_NAME="Acme",
+    )
+    csr = cnert.CSR(subject_attrs=subject_attrs)
+    assert str(csr) == "Certificate O=Acme,C=AQ,CN=www.example.com"
+
+
+def test_CSR_private_key_size():
+    csr = cnert.CSR()
+    assert csr.private_key.key_size == 2048
+
+
+def test_CSR_private_key_size_with_given_private_key(private_key):
+    csr = cnert.CSR(private_key=private_key)
+    assert csr.private_key.key_size == 2048
+
+
+def test_CSR_private_key_pem_PKCS1():
+    csr = cnert.CSR()
+    assert csr.private_key_pem_PKCS1.startswith(
+        b"-----BEGIN RSA PRIVATE KEY-----\n"
+    )
+    assert csr.private_key_pem_PKCS1.endswith(
+        b"\n-----END RSA PRIVATE KEY-----\n"
+    )
+
+
+def test__CSR_private_key_pem():
+    csr = cnert.CSR()
+    assert csr.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
+    assert csr.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+
+
+def test_CSR_public_key():
+    csr = cnert.CSR()
+    assert isinstance(csr.public_key, rsa.RSAPublicKey)

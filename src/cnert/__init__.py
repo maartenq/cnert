@@ -28,6 +28,43 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 
+def build_private_key(
+    key_size: int = 2048,
+    public_exponent: int = 65537,
+) -> rsa.RSAPrivateKey:
+    """
+    Parameters:
+        key_size: Key size
+        public_exponent: public exponenent
+    """
+    return rsa.generate_private_key(
+        public_exponent=public_exponent,
+        key_size=key_size,
+        backend=default_backend(),
+    )
+
+
+def idna_encode(_string: str) -> str:
+    for prefix in ["*.", "."]:
+        if _string.startswith(prefix):
+            _string = _string[len(prefix) :]
+            _bytes = prefix.encode("ascii") + idna.encode(_string, uts46=True)
+            return _bytes.decode("ascii")
+    return idna.encode(_string, uts46=True).decode("ascii")
+
+
+def identity_string_to_x509(identity: str) -> x509.GeneralName:
+    try:
+        return x509.IPAddress(ip_address(identity))
+    except ValueError:
+        try:
+            return x509.IPAddress(ip_network(identity))
+        except ValueError:
+            if "@" in identity:
+                return x509.RFC822Name(identity)
+            return x509.DNSName(idna_encode(identity))
+
+
 class Freezer:
     """
     Freeze any class such that instantiated objects become immutable.
@@ -189,28 +226,6 @@ class _CertBuilder:
         self.builder = x509.CertificateBuilder()
 
     @staticmethod
-    def _idna_encode(_string: str) -> str:
-        for prefix in ["*.", "."]:
-            if _string.startswith(prefix):
-                _string = _string[len(prefix) :]
-                _bytes = prefix.encode("ascii") + idna.encode(
-                    _string, uts46=True
-                )
-                return _bytes.decode("ascii")
-        return idna.encode(_string, uts46=True).decode("ascii")
-
-    def _identity_string_to_x509(self, identity: str) -> x509.GeneralName:
-        try:
-            return x509.IPAddress(ip_address(identity))
-        except ValueError:
-            try:
-                return x509.IPAddress(ip_network(identity))
-            except ValueError:
-                if "@" in identity:
-                    return x509.RFC822Name(identity)
-                return x509.DNSName(self._idna_encode(identity))
-
-    @staticmethod
     def _key_usage(
         content_commitment: bool = False,
         crl_sign: bool = False,
@@ -262,7 +277,7 @@ class _CertBuilder:
     def _add_subject_alt_name_extension(self, *sans: str) -> None:
         self.builder = self.builder.add_extension(
             x509.SubjectAlternativeName(
-                [self._identity_string_to_x509(san) for san in sans]
+                [identity_string_to_x509(san) for san in sans]
             ),
             critical=True,
         )
@@ -342,8 +357,8 @@ class _Cert:
         not_valid_after: Optional[datetime] = None,
         serial_number: Optional[int] = None,
         parent: Optional["_Cert"] = None,
+        private_key: Optional[rsa.RSAPrivateKey] = None,
         path_length: int = 0,
-        key_size: int = 2048,
         is_ca: bool = False,
     ) -> None:
         """
@@ -355,8 +370,8 @@ class _Cert:
             not_valid_after: CA not valid after date
             serial_number: Serial number
             parent: Certificate of CA.
+            private_key: RSA private key
             path_length: Path length
-            key_size: Key size
             is_ca: if CA
 
         """
@@ -369,6 +384,11 @@ class _Cert:
         if serial_number is None:
             serial_number = x509.random_serial_number()
 
+        if private_key is None:
+            self.private_key = build_private_key()
+        else:
+            self.private_key = private_key
+
         self.sans = sans
         self.subject_attrs = subject_attrs
         self.issuer_attrs = issuer_attrs
@@ -377,24 +397,8 @@ class _Cert:
         self.not_valid_after = not_valid_after
         self.serial_number = serial_number
         self.path_length = path_length
-        self.key_size = key_size
         self.is_ca = is_ca
-        self._build_private_key(self.key_size)
         self._build_certificate()
-
-    def _build_private_key(
-        self, key_size: int, public_exponent: int = 65537
-    ) -> None:
-        """
-        Parameters:
-            key_size: Key size
-            public_exponent: public exponenent
-        """
-        self.private_key = rsa.generate_private_key(
-            public_exponent=public_exponent,
-            key_size=key_size,
-            backend=default_backend(),
-        )
 
     def _build_certificate(self):
         cert_builder = _CertBuilder()
@@ -440,6 +444,90 @@ class _Cert:
         return f"Certificate {self.subject_attrs}"
 
 
+class CSR:
+    """
+    A CSR object.
+
+    Examples:
+        >>> csr = cnert.CSR()
+
+    Parameters:
+        sans: Subject Alternative Names as positional arguments
+        subject_attrs: Subject Name Attributes
+        private_key: RSA private key
+
+    """
+
+    def __init__(
+        self,
+        *sans: tuple[str, ...],
+        subject_attrs: Optional[NameAttrs] = None,
+        private_key: Optional[rsa.RSAPrivateKey] = None,
+    ) -> None:
+        self.sans = sans
+
+        if subject_attrs is None:
+            if sans:
+                subject_attrs = NameAttrs(COMMON_NAME=sans[0])
+            else:
+                subject_attrs = NameAttrs(COMMON_NAME="example.com")
+        self.subject_attrs = subject_attrs
+
+        if private_key is None:
+            self.private_key = build_private_key()
+        else:
+            self.private_key = private_key
+
+        self._csr_builder = (
+            x509.CertificateSigningRequestBuilder().subject_name(
+                subject_attrs.x509_name()
+            )
+        )
+        self.CSR = self._gen_csr()
+
+    def _add_subject_alt_name_extension(self) -> None:
+        self._csr_builder = self._csr_builder.add_extension(
+            x509.SubjectAlternativeName(
+                [identity_string_to_x509(san) for san in self.sans]
+            ),
+            critical=False,
+        )
+
+    def _gen_csr(self) -> x509.CertificateSigningRequest:
+        if self.sans:
+            self._add_subject_alt_name_extension()
+        csr = self._csr_builder.sign(
+            private_key=self.private_key,
+            algorithm=hashes.SHA256(),
+            backend=default_backend(),
+        )
+        self.pem = csr.public_bytes(serialization.Encoding.PEM)
+        return csr
+
+    @property
+    def private_key_pem_PKCS1(self) -> bytes:
+        return self.private_key.private_bytes(
+            serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
+    @property
+    def private_key_pem(self) -> bytes:
+        return self.private_key.private_bytes(
+            serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+
+    @property
+    def public_key(self) -> rsa.RSAPublicKey:
+        return self.private_key.public_key()
+
+    def __str__(self) -> str:
+        return f"Certificate {self.subject_attrs}"
+
+
 class CA:
     """
     A CA object.
@@ -454,10 +542,13 @@ class CA:
         True
 
     Parameters:
-        subject_attrs: Subject Name Attributes
-        not_valid_before: CA not valid before date
-        not_valid_after: CA not valid after date
-
+        subject_attrs: Subject Name Attributes.
+        subject_attrs: Issuer Name Attributes.
+        path_length: Maximum path length certificates subordinate.
+        not_valid_before: CA not valid before date.
+        not_valid_after: CA not valid after date.
+        parent: Parent of CA.
+        intermediate_num: Number of intermediates.
     """
 
     def __init__(
@@ -548,6 +639,7 @@ class CA:
         subject_attrs: Optional[NameAttrs] = None,
         not_valid_before: Optional[datetime] = None,
         not_valid_after: Optional[datetime] = None,
+        csr: Optional["CSR"] = None,
     ) -> "_Cert":
         """
         Issues a certificate
@@ -567,12 +659,18 @@ class CA:
             A _Cert object.
 
         """
+        if csr is None:
+            private_key = None
+            if subject_attrs is None:
+                if sans:
+                    subject_attrs = NameAttrs(COMMON_NAME=sans[0])
+                else:
+                    subject_attrs = NameAttrs(COMMON_NAME="example.com")
+        else:
+            sans = csr.sans
+            subject_attrs = csr.subject_attrs
+            private_key = csr.private_key
 
-        if subject_attrs is None:
-            if sans:
-                subject_attrs = NameAttrs(COMMON_NAME=sans[0])
-            else:
-                subject_attrs = NameAttrs(COMMON_NAME="example.com")
         return _Cert(
             *sans,
             subject_attrs=subject_attrs,
@@ -580,4 +678,5 @@ class CA:
             not_valid_before=not_valid_before,
             not_valid_after=not_valid_after,
             parent=self.cert,
+            private_key=private_key,
         )
