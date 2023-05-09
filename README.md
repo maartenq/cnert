@@ -7,13 +7,14 @@
 [![codecov](https://codecov.io/gh/maartenq/cnert/branch/main/graph/badge.svg?token=XXXXXXXXXX)](https://codecov.io/gh/maartenq/cnert)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](LICENSE)
 
+
 # Cnert - TLS Certificates for testing
 
 Cnert is simple Python API for creating TLS Certificates and stuff for testing
 purposes (on top of [cryptography]).
 
-[cnert.CA][cnert_CA] makes it easy to create CAs, intermediate CAs. These CA
-objects can then issue directly [certificates][cnert_Cert].
+[cnert.CA][] makes it easy to create CAs, intermediate CAs. These CA objects
+can then issue directly [certificates][cnert._Cert].
 
 Cnert can make CSRs. CA objects also use these to issue certificates.
 
@@ -129,6 +130,9 @@ better of with [trustme], trust me, or better: trust them.
     >>> cert.public_key_pem
     b'-----BEGIN CERTIFICATE-----\nMIIDITCCAgmgAwIBAgIUAx6AA8z3BqH/ICCmqOJXGI7PHCswDQYJKoZIhvcNAQEL\nBQAwEjEQMA4GA1UECgwHUm9vdCBDQTAeFw0yMzA1MDgwODU5NTlaFw0yMzA4MDcw\nODU5NTlaMBYxFDASBgNVBAMMC2V4YW1wbGUuY29tMIIBIjANBgkqhkiG9w0BAQEF\nAAOCAQ8AMIIBCgKCAQEAnWAlLvbR0hE8seqI8uBj8ESicJ/nF8I3KF9CFlTexQ73\nKdyqTRCoPZ6uuK0quX+qX5KeeNlWSnJRxSDc0WmLwYxWFVg6hmBDPLK1Ijntc1Uj\n4HENkolgPUBxgf9VBSmojqd1XL0o8PwGFIoyZ6Z/YTc3MqML4QZaB0m+TYlVgoJP\nQgFT9d9nQadvyswIx7nOMkT0Rd3sGl8nWaNgDaBLB6mkylGrtaiyo2M2LWKvNz69\nDWbjlccj65B04cBLwRcA2Zmx80leajX1zNWt0+dhJFo6rnLtmvIgqdLhCrNTmDMK\nrlyVsOrwJfXNreIPDEgYztZlrUdTnynmF4bW6W5KcwIDAQABo2swaTAdBgNVHQ4E\nFgQURd1r0d7XJBtT651AbuR2hg7TQBIwDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8E\nBAMCBaAwKgYDVR0lAQH/BCAwHgYIKwYBBQUHAwIGCCsGAQUFBwMBBggrBgEFBQcD\nAzANBgkqhkiG9w0BAQsFAAOCAQEANcFmZZkt4Z6jc069IOonGfcpUdnZieSEVyBE\nCQC+QWaHYqcD0ryYV8n1/UzNVcSkptQ5YrbgXNikV6+cuklFq4OjHlUDGOxchrkc\nSFGYAf+j7wAAx+OZWH5IwvMSTWGhfi7FWNFrzbO3JUE1q3OOnsIUmcDpd/8zucyE\njPf6F0MVujwMJq8VAH8UtUpVm1SApEBz9vgx0n7Z0l5fgRw7PMwwDkaoyplSC0VA\n7F7AUX3K0oJ7Gyw+9onfS090GMo6mlTfhtXNpPArleUUOTrp+TKVhwtz8GRRzxEW\nBE1OaNZaipKILZPbgDa5u67pRdU/OhuMFDsBh1GlPopcax+rCQ==\n-----END CERTIFICATE-----\n'
 
+    >>> cert.SHA1
+    '21B99CE5588417932ACB65C54398115C75240B04'
+
 
 
 ###  Issue a cert from a CA with alt names
@@ -164,5 +168,9 @@ better of with [trustme], trust me, or better: trust them.
 
 [cryptography]: https://cryptography.io/en/latest/
 [trustme]: https://github.com/python-trio/trustme
-[cnert_CA]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnertca
-[cnert_Cert]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnert_cert
+
+
+[cryptography]: https://cryptography.io/en/latest/
+[trustme]: https://github.com/python-trio/trustme
+[cnert.CA]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnertca
+[cnert._Cert]]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnert_cert

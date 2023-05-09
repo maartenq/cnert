@@ -422,6 +422,18 @@ class _Cert:
 
     @property
     def private_key_pem_PKCS1(self) -> bytes:
+        """
+        Examples:
+            >>> cert = CA().issue_cert()
+            >>> cert.private_key_pem_PKCS1
+            b'-----begin rsa private key-----
+            ...
+            \n-----end rsa private key-----\n'
+
+
+        Returns:
+            PEM encoded serialized key in TraditionalOpenSSL format.
+        """
         return self.private_key.private_bytes(
             serialization.Encoding.PEM,
             format=serialization.PrivateFormat.TraditionalOpenSSL,
@@ -430,6 +442,18 @@ class _Cert:
 
     @property
     def private_key_pem(self) -> bytes:
+        """
+        Examples:
+            >>> cert = CA().issue_cert()
+            >>> cert.private_key_pem
+            b'-----BEGIN PRIVATE KEY-----
+            ...
+            \n-----END PRIVATE KEY-----\n'
+
+
+        Returns:
+            PEM encoded serialized key in PKCS8 format.
+        """
         return self.private_key.private_bytes(
             serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -438,22 +462,59 @@ class _Cert:
 
     @property
     def public_key(self) -> rsa.RSAPublicKey:
+        """
+        Examples:
+            >>> cert = cnert.CA().issue_cert()
+            >>> cert.private_key
+            <cryptography.hazmat.backends.openssl.rsa._RSAPrivateKey object
+            at 0x1014e4e10>
+
+        Returns:
+            An RSA private key.
+        """
         return self.private_key.public_key()
 
     @property
     def MD5(self) -> str:
+        """
+        Examples:
+            >>> cert = cnert.CA().issue_cert()
+            >>> cert.MD5
+            'A03D37486DD47BE3E9C7EC1624073856'
+
+        Returns:
+            MD5 Fingerprint string in upper case.
+        """
         return bytes.hex(
             self.certificate.fingerprint(hashes.MD5()),  # noqa: S303
         ).upper()
 
     @property
     def SHA1(self) -> str:
+        """
+        Examples:
+            >>> cert = cnert.CA().issue_cert()
+            >>> cert.SHA1
+            '9E0A06CFB37B352FDA5B2226E6D631CF07D5D185'
+
+        Returns:
+            SHA1 Fingerprint string in upper case.
+        """
         return bytes.hex(
             self.certificate.fingerprint(hashes.SHA1()),  # noqa: S303
         ).upper()
 
     @property
     def SHA256(self) -> str:
+        """
+        Examples:
+            >>> cert = cnert.CA().issue_cert()
+            >>> cert.SHA256
+            '68307A6CBE2804038DF85FB53AEE96AB47EA81439AB2E059DDDEA9F901097D84'
+
+        Returns:
+            SHA256 Fingerprint string in upper case.
+        """
         return bytes.hex(self.certificate.fingerprint(hashes.SHA256())).upper()
 
     def __str__(self) -> str:
