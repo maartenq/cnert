@@ -1,6 +1,7 @@
 # tests/cnert/test_cli.py
 
 import ipaddress
+import re
 from datetime import datetime, timedelta
 
 import cnert
@@ -79,6 +80,11 @@ def csr(private_key):
             backend=default_backend(),
         )
     )
+
+
+@pytest.fixture
+def cert():
+    return cnert.CA().issue_cert()
 
 
 @pytest.mark.parametrize(
@@ -559,6 +565,18 @@ def test__Cert_serialnumber_is_42():
         serial_number=42,
     )
     assert cert.serial_number == 42
+
+
+def test__Cert_MD5(cert):
+    assert re.match("^[A-F0-9]{32}$", cert.MD5)
+
+
+def test__Cert_SHA1(cert):
+    assert re.match("^[A-F0-9]{40}$", cert.SHA1)
+
+
+def test__Cert_SHA246(cert):
+    assert re.match("^[A-F0-9]{64}$", cert.SHA256)
 
 
 def test__Cert_serialnumber_is_random():

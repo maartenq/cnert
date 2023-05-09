@@ -440,6 +440,22 @@ class _Cert:
     def public_key(self) -> rsa.RSAPublicKey:
         return self.private_key.public_key()
 
+    @property
+    def MD5(self) -> str:
+        return bytes.hex(
+            self.certificate.fingerprint(hashes.MD5()),  # noqa: S303
+        ).upper()
+
+    @property
+    def SHA1(self) -> str:
+        return bytes.hex(
+            self.certificate.fingerprint(hashes.SHA1()),  # noqa: S303
+        ).upper()
+
+    @property
+    def SHA256(self) -> str:
+        return bytes.hex(self.certificate.fingerprint(hashes.SHA256())).upper()
+
     def __str__(self) -> str:
         return f"Certificate {self.subject_attrs}"
 
