@@ -727,10 +727,11 @@ class CA:
             <cnert.Cert at 0x107f87f50>
 
         Parameters:
-            sans: Subject Alternative Names as positional arguments
-            subject_attrs: Subject Name Attributes
-            not_valid_before: Certificate not valid before date
-            not_valid_after: Certificate not valid after date
+            sans: Subject Alternative Names as positional arguments.
+            subject_attrs: Subject Name Attributes.
+            not_valid_before: Certificate not valid before date.
+            not_valid_after: Certificate not valid after date.
+            CSR: A CSR object.
 
         Returns:
             A _Cert object.
