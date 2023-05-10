@@ -31,29 +31,6 @@ If you don't need that and you just need any "old" certificate, you probably
 better of with [trustme], trust me, or better: trust them.
 
 
-# Cnert - TLS Certificates for testing
-
-Cnert is simple Python API for creating TLS Certificates and stuff for testing
-purposes (on top of [cryptography]).
-
-[cnert.CA][] makes it easy to create CAs, intermediate CAs. These CA objects
-can then issue directly [certificates][cnert._Cert].
-
-Cnert can make CSRs. CA objects also use these to issue certificates.
-
-Subject and Issuer Name Attributes, Subject Alternative Names, not_before_date
-and not_after_data can all be set.
-
-Cnert has different methods to introspect these.
-
-Cnert is made specially made for testing application that *do something* with
-TLS certificate and there for can make tailor made certificates for testing
-those apps.
-
-If you don't need that and you just need any "old" certificate, you probably
-better of with [trustme], trust me, or better: trust them.
-
-
 ## Usage
 
 ### Create a root CA
@@ -69,6 +46,7 @@ better of with [trustme], trust me, or better: trust them.
 
     >>> ca.parent is None
     True
+
 
 ### Issue an intermediate CA
 
@@ -122,7 +100,6 @@ better of with [trustme], trust me, or better: trust them.
     b'-----BEGIN CERTIFICATE-----\nMIIC9zCCAd+gAwIBAgIUGyCBgdyVPVGlYIJj25+x1AMQPHswDQYJKoZIhvcNAQEL\nBQAwEjEQMA4GA1UECgwHUm9vdCBDQTAeFw0yMzA1MDgwODQyNThaFw0yMzA4MDcw\nODQyNThaMBIxEDAOBgNVBAoMB1Jvb3QgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB\nDwAwggEKAoIBAQDK13Q6dZdK17SPmplwTq4Phh7TatM4HQqONEq6+xE2VnJ9eeCh\nQYM5w5dnxIUeV10j3ODPJz5L+6IirV/e6voCWkS6Vgzh/lAVTbUVGANR26NpMnjm\n/qU0NUYuSQo5QFJuwFEx9CZ1xGTac9gspBo1jO7E9m01pRAXlr1HqTZT7mY4LNWb\nDyjKmMa/tfK0+itiKce48hZDxqy3YLnWYyIAZ+rTrf9RW5hpLb6g/KeAf3w5q55Q\nL2dCsC6flZ6NFVRm7okpawwN2tf5c451fMm3B+GtVJJMP+6lmk6MC3h++pcwOimg\nUwB8tYEPoZHuMjd1hacZcbfGFzCGAbme+BZbAgMBAAGjRTBDMB0GA1UdDgQWBBSA\nIsRH6giY94MEfhzafTd5WC2HMzASBgNVHRMBAf8ECDAGAQH/AgEJMA4GA1UdDwEB\n/wQEAwIBpjANBgkqhkiG9w0BAQsFAAOCAQEACLdxWMlmr3drMvA7GaQArzlbe/ny\nx8mThDhZP6gx+yTJ6LXk8CFc7S23JXFZVquwcV5yFa0DavaodBI3RNWknx/Yu5Lm\nM7cOByu2IuJhcEu4o+ZntLZLb7heFMXMIf01lVkYpyYyvS/NvVdu9km8f6ZvxV9r\nDyTDDMjeh+hg5l2Wwc4P6UGoMlmOruUiunsb8hiDLhD+brYBHKHqJY9pCrzJQd0v\nWEkAOsBwaTv/POO0F4VDZSfA5CqjYOkppupw9nXXfJkk9PvKuDI1G2XO7pcW1PWh\nDdGK6Wz0AXMWWbbX8LToDrFA9q7YOxGNOVPhbHZ++bDJvLNmjrtruy3UTQ==\n-----END CERTIFICATE-----\n'
 
 
-
 ###  Inspect the Intermediate CA
 
     >>> intermediate.cert.subject_attrs
@@ -155,7 +132,6 @@ better of with [trustme], trust me, or better: trust them.
 
     >>> cert.SHA1
     '21B99CE5588417932ACB65C54398115C75240B04'
-
 
 
 ###  Issue a cert from a CA with alt names
@@ -191,6 +167,7 @@ better of with [trustme], trust me, or better: trust them.
 
 [cryptography]: https://cryptography.io/en/latest/
 [trustme]: https://github.com/python-trio/trustme
+
 
 [cnert.CA]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnertca
 [cnert._Cert]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnert_cert
