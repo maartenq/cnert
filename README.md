@@ -169,8 +169,5 @@ better of with [trustme], trust me, or better: trust them.
 [cryptography]: https://cryptography.io/en/latest/
 [trustme]: https://github.com/python-trio/trustme
 
-
-[cryptography]: https://cryptography.io/en/latest/
-[trustme]: https://github.com/python-trio/trustme
 [cnert.CA]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnertca
-[cnert._Cert]]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnert_cert
+[cnert._Cert]: https://cnert.readthedocs.io/en/latest/cnert/#class-cnert_cert
