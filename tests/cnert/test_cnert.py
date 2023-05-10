@@ -510,8 +510,12 @@ def test__Cert_private_key_pem_with_given_private_key(private_key):
         issuer_attrs=issuer_attrs,
         private_key=private_key,
     )
-    assert cert.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
-    assert cert.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+    assert cert.private_key_pem_PKCS8.startswith(
+        b"-----BEGIN PRIVATE KEY-----\n"
+    )
+    assert cert.private_key_pem_PKCS8.endswith(
+        b"\n-----END PRIVATE KEY-----\n"
+    )
 
 
 def test__Cert_private_key_size_with_given_private_key(private_key):
@@ -541,12 +545,16 @@ def test__Cert_private_key_pem_PKCS1_with_given_private_key(private_key):
     )
 
 
-def test__Cert_private_key_pem():
+def test__Cert_private_key_pem_PKCS8():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
-    assert cert.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
-    assert cert.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+    assert cert.private_key_pem_PKCS8.startswith(
+        b"-----BEGIN PRIVATE KEY-----\n"
+    )
+    assert cert.private_key_pem_PKCS8.endswith(
+        b"\n-----END PRIVATE KEY-----\n"
+    )
 
 
 def test__Cert_public_key():
@@ -827,10 +835,12 @@ def test_CSR_private_key_pem_PKCS1():
     )
 
 
-def test__CSR_private_key_pem():
+def test__CSR_private_key_pem_PKCS8():
     csr = cnert.CSR()
-    assert csr.private_key_pem.startswith(b"-----BEGIN PRIVATE KEY-----\n")
-    assert csr.private_key_pem.endswith(b"\n-----END PRIVATE KEY-----\n")
+    assert csr.private_key_pem_PKCS8.startswith(
+        b"-----BEGIN PRIVATE KEY-----\n"
+    )
+    assert csr.private_key_pem_PKCS8.endswith(b"\n-----END PRIVATE KEY-----\n")
 
 
 def test_CSR_public_key():

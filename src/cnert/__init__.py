@@ -416,9 +416,7 @@ class _Cert:
         self.certificate = cert_builder.sign(
             self.parent.private_key if self.parent else self.private_key,
         )
-        self.public_key_pem = self.certificate.public_bytes(
-            serialization.Encoding.PEM
-        )
+        self.pem = self.certificate.public_bytes(serialization.Encoding.PEM)
 
     @property
     def private_key_pem_PKCS1(self) -> bytes:
@@ -441,11 +439,11 @@ class _Cert:
         )
 
     @property
-    def private_key_pem(self) -> bytes:
+    def private_key_pem_PKCS8(self) -> bytes:
         """
         Examples:
             >>> cert = CA().issue_cert()
-            >>> cert.private_key_pem
+            >>> cert.private_key_pem_PKCS8
             b'-----BEGIN PRIVATE KEY-----
             ...
             \n-----END PRIVATE KEY-----\n'
@@ -590,7 +588,7 @@ class CSR:
         )
 
     @property
-    def private_key_pem(self) -> bytes:
+    def private_key_pem_PKCS8(self) -> bytes:
         return self.private_key.private_bytes(
             serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
