@@ -83,6 +83,11 @@ def csr(private_key):
 
 
 @pytest.fixture
+def ca_cert():
+    return cnert.CA().cert
+
+
+@pytest.fixture
 def cert():
     return cnert.CA().issue_cert()
 
@@ -587,6 +592,18 @@ def test__Cert_SHA246(cert):
     assert re.match("^[A-F0-9]{64}$", cert.SHA256)
 
 
+def test__Cert_subject_key_identifier_digest(cert):
+    assert re.match("^[A-F0-9]{40}$", cert.subject_key_identifier_digest)
+
+
+def test__Cert_authority_key_identifier_digest(cert):
+    assert re.match("^[A-F0-9]{40}$", cert.authority_key_identifier_digest)
+
+
+def test__Cert_authority_key_identifier_digest_is_None_for_ca_cert(ca_cert):
+    assert ca_cert.authority_key_identifier_digest is None
+
+
 def test__Cert_serialnumber_is_random():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
@@ -664,14 +681,24 @@ def test__CertBuilder__add_leaf_cert_extensions_extended_key_usage():
     assert len(cert_builder.builder._extensions) == 0
     cert_builder._add_leaf_cert_extension()
     assert len(cert_builder.builder._extensions) == 2
-    ext_key_usage = cert_builder.builder._extensions[1]
-    assert type(ext_key_usage.value) is extensions.ExtendedKeyUsage
-    assert ext_key_usage.oid.dotted_string == "2.5.29.37"
-    assert list(ext_key_usage.value) == [
+    extension = cert_builder.builder._extensions[1]
+    assert type(extension.value) is extensions.ExtendedKeyUsage
+    assert extension.oid.dotted_string == "2.5.29.37"
+    assert list(extension.value) == [
         ObjectIdentifier("1.3.6.1.5.5.7.3.2"),
         ObjectIdentifier("1.3.6.1.5.5.7.3.1"),
         ObjectIdentifier("1.3.6.1.5.5.7.3.3"),
     ]
+
+
+def test__CertBuilder__add_authority_key_identifier_extension(public_key):
+    cert_builder = cnert._CertBuilder()
+    assert len(cert_builder.builder._extensions) == 0
+    cert_builder._add_authority_key_identifier_extension(public_key)
+    assert len(cert_builder.builder._extensions) == 1
+    extension = cert_builder.builder._extensions[0]
+    assert type(extension.value) is extensions.AuthorityKeyIdentifier
+    assert extension.oid.dotted_string == "2.5.29.35"
 
 
 def test__CertBuilder__add_subject_alt_name_extension():
@@ -704,8 +731,8 @@ def test__CertBuilder_build(public_key):
         not_valid_before=datetime.now(),
         not_valid_after=datetime.now() + timedelta(days=13),
         is_ca=True,
-        path_length=8,
         public_key=public_key,
+        path_length=8,
     )
     assert len(cert_builder.builder._extensions) == 3
     sub_key_id = cert_builder.builder._extensions[0]

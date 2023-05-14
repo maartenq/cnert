@@ -8,6 +8,10 @@
 
 ::: cnert.NameAttrs
 
+### Class cnert._CertBuilder
+
+::: cnert._CertBuilder
+
 ### Class cnert._Cert
 
 ::: cnert._Cert

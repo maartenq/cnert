@@ -237,6 +237,9 @@ class _CertBuilder:
         key_cert_sign: bool = False,
         key_encipherment: bool = True,
     ) -> x509.KeyUsage:
+        """
+        Create X509.KeyUsage objects.
+        """
         return x509.KeyUsage(
             content_commitment=content_commitment,
             crl_sign=crl_sign,
@@ -250,6 +253,9 @@ class _CertBuilder:
         )
 
     def _add_ca_extension(self) -> None:
+        """
+        Add CA extension.
+        """
         self.builder = self.builder.add_extension(
             self._key_usage(
                 digital_signature=True,
@@ -260,6 +266,9 @@ class _CertBuilder:
         )
 
     def _add_leaf_cert_extension(self) -> None:
+        """
+        Add leaf extension.
+        """
         self.builder = self.builder.add_extension(
             self._key_usage(),
             critical=True,
@@ -275,11 +284,34 @@ class _CertBuilder:
         )
 
     def _add_subject_alt_name_extension(self, *sans: str) -> None:
+        """
+        Add Subject Alternative Name extension.
+
+        Parameters:
+            sans: Subject Alternative Names as positional arguments.
+        """
         self.builder = self.builder.add_extension(
             x509.SubjectAlternativeName(
                 [identity_string_to_x509(san) for san in sans]
             ),
             critical=True,
+        )
+
+    def _add_authority_key_identifier_extension(
+        self,
+        issuer_public_key: rsa.RSAPublicKey,
+    ) -> None:
+        """
+        Add Authority Key Identifier extension.
+
+        Parameters:
+            issuer_public_key: Issuer Public key
+        """
+        self.builder = self.builder.add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(
+                issuer_public_key
+            ),
+            critical=False,
         )
 
     def build(
@@ -291,9 +323,25 @@ class _CertBuilder:
         not_valid_before: datetime,
         not_valid_after: datetime,
         is_ca: bool,
-        path_length: Optional[int],
         public_key: rsa.RSAPublicKey,
+        issuer_public_key: Optional[rsa.RSAPublicKey] = None,
+        path_length: Optional[int] = None,
     ) -> None:
+        """
+        Does the Certificate building.
+
+        Parameters:
+            sans: Subject Alternative Names as positional arguments.
+            subject_attrs_X509_name: Subject Attributes Names.
+            issuer_attrs_X509_name: Issuer Atributes Names.
+            serial_number: Serial number.
+            not_valid_before: Not valid before date.
+            not_valid_after: Note valid after date.
+            is_ca: Add CA extension.
+            public_key: Public key for the certificate.
+            issuer_public_key: Issuer public key.
+            path_length: Max path length.
+        """
         self.builder = (
             self.builder.subject_name(subject_attrs_X509_name)
             .issuer_name(issuer_attrs_X509_name)
@@ -313,6 +361,8 @@ class _CertBuilder:
                 critical=True,
             )
         )
+        if issuer_public_key is not None:
+            self._add_authority_key_identifier_extension(issuer_public_key)
         if is_ca:
             self._add_ca_extension()
         else:
@@ -403,15 +453,18 @@ class _Cert:
     def _build_certificate(self):
         cert_builder = _CertBuilder()
         cert_builder.build(
-            self.sans,
-            self.subject_attrs.x509_name(),
-            self.issuer_attrs.x509_name(),
-            self.serial_number,
-            self.not_valid_before,
-            self.not_valid_after,
-            self.is_ca,
-            None if not self.is_ca else self.path_length,
-            self.public_key,
+            sans=self.sans,
+            subject_attrs_X509_name=self.subject_attrs.x509_name(),
+            issuer_attrs_X509_name=self.issuer_attrs.x509_name(),
+            serial_number=self.serial_number,
+            not_valid_before=self.not_valid_before,
+            not_valid_after=self.not_valid_after,
+            is_ca=self.is_ca,
+            public_key=self.public_key,
+            issuer_public_key=(
+                self.parent.public_key if self.parent else None
+            ),
+            path_length=None if not self.is_ca else self.path_length,
         )
         self.certificate = cert_builder.sign(
             self.parent.private_key if self.parent else self.private_key,
@@ -426,7 +479,6 @@ class _Cert:
             >>> cert.private_key_pem_PKCS1
             b'-----begin rsa private key-----
             ...
-            \n-----end rsa private key-----\n'
 
 
         Returns:
@@ -446,8 +498,6 @@ class _Cert:
             >>> cert.private_key_pem_PKCS8
             b'-----BEGIN PRIVATE KEY-----
             ...
-            \n-----END PRIVATE KEY-----\n'
-
 
         Returns:
             PEM encoded serialized key in PKCS8 format.
@@ -481,7 +531,7 @@ class _Cert:
             'A03D37486DD47BE3E9C7EC1624073856'
 
         Returns:
-            MD5 Fingerprint string in upper case.
+            MD5 Fingerprint string in hexadecimal and upper case.
         """
         return bytes.hex(
             self.certificate.fingerprint(hashes.MD5()),  # noqa: S303
@@ -496,7 +546,7 @@ class _Cert:
             '9E0A06CFB37B352FDA5B2226E6D631CF07D5D185'
 
         Returns:
-            SHA1 Fingerprint string in upper case.
+            SHA1 Fingerprint string in hexadecimal and upper case.
         """
         return bytes.hex(
             self.certificate.fingerprint(hashes.SHA1()),  # noqa: S303
@@ -511,9 +561,47 @@ class _Cert:
             '68307A6CBE2804038DF85FB53AEE96AB47EA81439AB2E059DDDEA9F901097D84'
 
         Returns:
-            SHA256 Fingerprint string in upper case.
+            SHA256 Fingerprint string in hexadecimal and upper case.
         """
         return bytes.hex(self.certificate.fingerprint(hashes.SHA256())).upper()
+
+    @property
+    def subject_key_identifier_digest(self) -> Optional[str]:
+        """
+        Examples:
+            >>> cert = cnert.CA().issue_cert()
+            >>> cert.subject_key_identifier_digest
+            '8F85C564F62E39D5A5CA346CA26AAE67029B671E'
+
+        Returns:
+            The binary value of the subject key identifier in hexadecimal
+            and upper case.
+        """
+        ext = self.certificate.extensions.get_extension_for_oid(
+            x509.ExtensionOID.SUBJECT_KEY_IDENTIFIER
+        )
+        return bytes.hex(ext.value.key_identifier).upper()
+
+    @property
+    def authority_key_identifier_digest(self) -> Optional[str]:
+        """
+        Examples:
+            >>> cert = cnert.CA().issue_cert()
+            >>> cert.authority_key_identifier_digest
+            '8F85C564F62E39D5A5CA346CA26AAE67029B671E'
+
+        Returns:
+            The binary value of the authority key identifier in hexadecimal
+            and upper case or None when certificate has no
+            subject key identifier extension.
+        """
+        try:
+            ext = self.certificate.extensions.get_extension_for_oid(
+                x509.ExtensionOID.AUTHORITY_KEY_IDENTIFIER
+            )
+            return bytes.hex(ext.value.key_identifier).upper()
+        except x509.ExtensionNotFound:
+            return None
 
     def __str__(self) -> str:
         return f"Certificate {self.subject_attrs}"
