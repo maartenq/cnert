@@ -33,6 +33,8 @@ def build_private_key(
     public_exponent: int = 65537,
 ) -> rsa.RSAPrivateKey:
     """
+    Creates a private key.
+
     Parameters:
         key_size: Key size
         public_exponent: public exponenent
@@ -45,6 +47,12 @@ def build_private_key(
 
 
 def idna_encode(_string: str) -> str:
+    """
+    Creates a valid  internationalized domain name
+
+    Parameters:
+        _string: Internationalized domain name
+    """
     for prefix in ["*.", "."]:
         if _string.startswith(prefix):
             _string = _string[len(prefix) :]
@@ -54,6 +62,12 @@ def idna_encode(_string: str) -> str:
 
 
 def identity_string_to_x509(identity: str) -> x509.GeneralName:
+    """
+    Creates a x509.GeneralName from a string.
+
+    Parameters:
+        identity: IP Address, DNS name or email address.
+    """
     try:
         return x509.IPAddress(ip_address(identity))
     except ValueError:
@@ -412,6 +426,8 @@ class _Cert:
         is_ca: bool = False,
     ) -> None:
         """
+        Initialize a _Cert object.
+
         Parameters:
             sans: Subject Alternative Names as positional arguments
             subject_attrs: Subject Name Attributes
@@ -423,7 +439,6 @@ class _Cert:
             private_key: RSA private key
             path_length: Path length
             is_ca: if CA
-
         """
         if not_valid_before is None:
             not_valid_before = datetime.utcnow()
@@ -566,7 +581,7 @@ class _Cert:
         return bytes.hex(self.certificate.fingerprint(hashes.SHA256())).upper()
 
     @property
-    def subject_key_identifier_digest(self) -> Optional[str]:
+    def subject_key_identifier_digest(self) -> str:
         """
         Examples:
             >>> cert = cnert.CA().issue_cert()
