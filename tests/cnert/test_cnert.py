@@ -1,5 +1,7 @@
 # tests/cnert/test_cli.py
 
+from __future__ import annotations  # for Python 3.7-3.9
+
 import ipaddress
 import re
 from datetime import datetime, timedelta
@@ -383,6 +385,11 @@ def test_CA_subject_attrs_is_issue_attrs():
     assert ca.cert.subject_attrs == ca.cert.issuer_attrs
 
 
+def test_CA_serial_number_is_44():
+    ca = cnert.CA(serial_number=44)
+    assert ca.cert.serial_number == 44
+
+
 def test_CA_issue_intermediate_first():
     ca = cnert.CA()
     intermediate_1 = ca.issue_intermediate()
@@ -426,6 +433,12 @@ def test_CA_issue_intermediate_max_path_lenght():
     assert "Can't create intermediate CA: path length is 0" in str(exc.value)
 
 
+def test_CA_issue_intermediate_serial_number_is_13():
+    ca = cnert.CA()
+    im = ca.issue_intermediate(serial_number=13)
+    assert im.cert.serial_number == 13
+
+
 def test_CA_issue_cert_default_common_name_is_example_com():
     ca = cnert.CA()
     cert = ca.issue_cert()
@@ -444,6 +457,12 @@ def test_CA_issue_cert_sans():
     sans = ("www.example.com", "example.com")
     cert = ca.issue_cert(*sans)
     assert cert.subject_attrs.COMMON_NAME == "www.example.com"
+
+
+def test_CA_issue_cert_serial_number_is_43():
+    ca = cnert.CA()
+    cert = ca.issue_cert(serial_number=43)
+    assert cert.serial_number == 43
 
 
 def test_CA_issue_cert_with_csr(mocker, private_key):

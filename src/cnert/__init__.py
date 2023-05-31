@@ -1,4 +1,16 @@
-# cnert/__init__.py
+# cnert/__init__.py=serial_number,
+
+from __future__ import annotations  # for Python 3.7-3.9
+
+from datetime import datetime, timedelta
+from ipaddress import ip_address, ip_network
+
+import idna
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 """
 Cnert makes TLS private keys, CSRs, private CAs and certificates.
@@ -13,19 +25,7 @@ __uri__ = "https://github.com/maartenq/cnert"
 __author__ = "Maarten"
 __email__ = "ikmaarten@gmail.com"
 __license__ = "MIT or Apache License, Version 2.0"
-__copyright__ = "Copyright (c) 2021  Maarten"
-
-
-from datetime import datetime, timedelta
-from ipaddress import ip_address, ip_network
-from typing import Optional, Union
-
-import idna
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+__copyright__ = "Copyright (c) 2023  Maarten"
 
 
 def build_private_key(
@@ -330,7 +330,7 @@ class _CertBuilder:
 
     def build(
         self,
-        sans: Union[tuple[()], tuple[str, ...]],
+        sans: tuple[()] | tuple[str, ...],
         subject_attrs_X509_name: x509.Name,
         issuer_attrs_X509_name: x509.Name,
         serial_number: int,
@@ -338,8 +338,8 @@ class _CertBuilder:
         not_valid_after: datetime,
         is_ca: bool,
         public_key: rsa.RSAPublicKey,
-        issuer_public_key: Optional[rsa.RSAPublicKey] = None,
-        path_length: Optional[int] = None,
+        issuer_public_key: rsa.RSAPublicKey | None = None,
+        path_length: int | None = None,
     ) -> None:
         """
         Does the Certificate building.
@@ -417,11 +417,11 @@ class _Cert:
         *sans: str,
         subject_attrs: NameAttrs,
         issuer_attrs: NameAttrs,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-        serial_number: Optional[int] = None,
-        parent: Optional["_Cert"] = None,
-        private_key: Optional[rsa.RSAPrivateKey] = None,
+        not_valid_before: datetime | None = None,
+        not_valid_after: datetime | None = None,
+        serial_number: int | None = None,
+        parent: _Cert | None = None,
+        private_key: rsa.RSAPrivateKey | None = None,
         path_length: int = 0,
         is_ca: bool = False,
     ) -> None:
@@ -598,7 +598,7 @@ class _Cert:
         return bytes.hex(ext.value.key_identifier).upper()
 
     @property
-    def authority_key_identifier_digest(self) -> Optional[str]:
+    def authority_key_identifier_digest(self) -> str | None:
         """
         Examples:
             >>> cert = cnert.CA().issue_cert()
@@ -638,9 +638,9 @@ class CSR:
 
     def __init__(
         self,
-        *sans: tuple[str, ...],
-        subject_attrs: Optional[NameAttrs] = None,
-        private_key: Optional[rsa.RSAPrivateKey] = None,
+        *sans: str,
+        subject_attrs: NameAttrs | None = None,
+        private_key: rsa.RSAPrivateKey | None = None,
     ) -> None:
         self.sans = sans
 
@@ -731,12 +731,13 @@ class CA:
 
     def __init__(
         self,
-        subject_attrs: Optional[NameAttrs] = None,
-        issuer_attrs: Optional[NameAttrs] = None,
+        subject_attrs: NameAttrs | None = None,
+        issuer_attrs: NameAttrs | None = None,
         path_length: int = 9,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-        parent: Optional["CA"] = None,
+        not_valid_before: datetime | None = None,
+        not_valid_after: datetime | None = None,
+        serial_number: int | None = None,
+        parent: CA | None = None,
         intermediate_num: int = 0,
     ) -> None:
         self.intermediate_num = intermediate_num
@@ -754,6 +755,7 @@ class CA:
             path_length=path_length,
             not_valid_before=not_valid_before,
             not_valid_after=not_valid_after,
+            serial_number=serial_number,
             parent=(
                 self.parent.cert  # type: ignore[has-type]
                 if self.parent is not None
@@ -791,10 +793,11 @@ class CA:
 
     def issue_intermediate(
         self,
-        subject_attrs: Optional[NameAttrs] = None,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-    ) -> "CA":
+        subject_attrs: NameAttrs | None = None,
+        not_valid_before: datetime | None = None,
+        not_valid_after: datetime | None = None,
+        serial_number: int | None = None,
+    ) -> CA:
         if self.cert.path_length == 0:
             raise ValueError("Can't create intermediate CA: path length is 0")
         intermediate_num = self.intermediate_num + 1
@@ -807,6 +810,7 @@ class CA:
             path_length=self.cert.path_length - 1,
             not_valid_before=not_valid_before or self.cert.not_valid_before,
             not_valid_after=not_valid_after or self.cert.not_valid_after,
+            serial_number=serial_number,
             parent=self,
             intermediate_num=intermediate_num,
         )
@@ -814,11 +818,12 @@ class CA:
     def issue_cert(
         self,
         *sans: str,
-        subject_attrs: Optional[NameAttrs] = None,
-        not_valid_before: Optional[datetime] = None,
-        not_valid_after: Optional[datetime] = None,
-        csr: Optional["CSR"] = None,
-    ) -> "_Cert":
+        subject_attrs: NameAttrs | None = None,
+        not_valid_before: datetime | None = None,
+        not_valid_after: datetime | None = None,
+        serial_number: int | None = None,
+        csr: CSR | None = None,
+    ) -> _Cert:
         """
         Issues a certificate
 
@@ -838,24 +843,24 @@ class CA:
             A _Cert object.
 
         """
-        if csr is None:
+        if csr:
+            sans = csr.sans
+            subject_attrs = csr.subject_attrs
+            private_key = csr.private_key
+        else:
             private_key = None
             if subject_attrs is None:
                 if sans:
                     subject_attrs = NameAttrs(COMMON_NAME=sans[0])
                 else:
                     subject_attrs = NameAttrs(COMMON_NAME="example.com")
-        else:
-            sans = csr.sans
-            subject_attrs = csr.subject_attrs
-            private_key = csr.private_key
-
         return _Cert(
             *sans,
             subject_attrs=subject_attrs,
             issuer_attrs=self.cert.subject_attrs,
             not_valid_before=not_valid_before,
             not_valid_after=not_valid_after,
+            serial_number=serial_number,
             parent=self.cert,
             private_key=private_key,
         )
