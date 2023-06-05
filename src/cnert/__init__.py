@@ -1,4 +1,4 @@
-# cnert/__init__.py=serial_number,
+# cnert/__init__.py
 
 from __future__ import annotations  # for Python 3.7-3.9
 
