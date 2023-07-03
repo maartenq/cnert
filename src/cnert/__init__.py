@@ -4,6 +4,7 @@ from __future__ import annotations  # for Python 3.7-3.9
 
 from datetime import datetime, timedelta
 from ipaddress import ip_address, ip_network
+from typing import ClassVar
 
 import idna
 from cryptography import x509
@@ -84,7 +85,7 @@ class Freezer:
     Freeze any class such that instantiated objects become immutable.
     """
 
-    __slots__: list[str] = []
+    __slots__: ClassVar[list[str]] = []
     _frozen: bool = False
 
     def __init__(self):
