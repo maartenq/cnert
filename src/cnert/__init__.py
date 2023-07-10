@@ -539,6 +539,24 @@ class _Cert:
         return self.private_key.public_key()
 
     @property
+    def public_key_pem(self) -> bytes:
+        """
+        Examples:
+            >>> cert = CA().issue_cert()
+            >>> cert.public_key_pem
+            b'-----BEGIN PUBLIC KEY-----
+            ...
+
+
+        Returns:
+            PEM encoded serialized key in RSAPublicKey format.
+        """
+        return self.public_key.public_bytes(
+            serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+
+    @property
     def MD5(self) -> str:
         """
         Examples:
