@@ -6,7 +6,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "cnert"
-version = "0.8.1"
+version = "0.8.2"
 description = "Cnert is trying to be a simple API for creating TLS Certificates testing purposes."
 authors = ["Maarten <ikmaarten@gmail.com>"]
 license = "MIT"
@@ -39,7 +39,7 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.9"
-cryptography = "~42.0.0"
+cryptography = "~42.0"
 idna = "^3.6"
 
 [tool.poetry.group.dev.dependencies]
