@@ -2,7 +2,7 @@
 
 from __future__ import annotations  # for Python 3.7-3.9
 
-from datetime import datetime, timedelta
+import datetime
 from ipaddress import ip_address, ip_network
 from typing import ClassVar
 
@@ -17,7 +17,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 Cnert makes TLS private keys, CSRs, private CAs and certificates.
 """
 
-__version__ = "0.7.3"
+__version__ = "0.8.0"
 __title__ = "Cnert"
 __description__ = (
     "Cnert makes TLS private keys, CSRs, private CAs and certificates."
@@ -335,8 +335,8 @@ class _CertBuilder:
         subject_attrs_X509_name: x509.Name,
         issuer_attrs_X509_name: x509.Name,
         serial_number: int,
-        not_valid_before: datetime,
-        not_valid_after: datetime,
+        not_valid_before: datetime.datetime,
+        not_valid_after: datetime.datetime,
         is_ca: bool,
         public_key: rsa.RSAPublicKey,
         issuer_public_key: rsa.RSAPublicKey | None = None,
@@ -418,8 +418,8 @@ class _Cert:
         *sans: str,
         subject_attrs: NameAttrs,
         issuer_attrs: NameAttrs,
-        not_valid_before: datetime | None = None,
-        not_valid_after: datetime | None = None,
+        not_valid_before: datetime.datetime | None = None,
+        not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         parent: _Cert | None = None,
         private_key: rsa.RSAPrivateKey | None = None,
@@ -442,10 +442,10 @@ class _Cert:
             is_ca: if CA
         """
         if not_valid_before is None:
-            not_valid_before = datetime.utcnow()
+            not_valid_before = datetime.datetime.now(datetime.UTC)
 
         if not_valid_after is None:
-            not_valid_after = not_valid_before + timedelta(weeks=13)
+            not_valid_after = not_valid_before + datetime.timedelta(weeks=13)
 
         if serial_number is None:
             serial_number = x509.random_serial_number()
@@ -753,8 +753,8 @@ class CA:
         subject_attrs: NameAttrs | None = None,
         issuer_attrs: NameAttrs | None = None,
         path_length: int = 9,
-        not_valid_before: datetime | None = None,
-        not_valid_after: datetime | None = None,
+        not_valid_before: datetime.datetime | None = None,
+        not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         parent: CA | None = None,
         intermediate_num: int = 0,
@@ -813,8 +813,8 @@ class CA:
     def issue_intermediate(
         self,
         subject_attrs: NameAttrs | None = None,
-        not_valid_before: datetime | None = None,
-        not_valid_after: datetime | None = None,
+        not_valid_before: datetime.datetime | None = None,
+        not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
     ) -> CA:
         if self.cert.path_length == 0:
@@ -838,8 +838,8 @@ class CA:
         self,
         *sans: str,
         subject_attrs: NameAttrs | None = None,
-        not_valid_before: datetime | None = None,
-        not_valid_after: datetime | None = None,
+        not_valid_before: datetime.datetime | None = None,
+        not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         csr: CSR | None = None,
     ) -> _Cert:
