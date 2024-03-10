@@ -494,7 +494,7 @@ def test__Cert__str__():
 def test__Cert_default_not_valid_before():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    before = datetime.datetime.now(datetime.UTC)
+    before = datetime.datetime.now(datetime.timezone.utc)
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.not_valid_before - before < datetime.timedelta(minutes=1)
 
@@ -502,7 +502,9 @@ def test__Cert_default_not_valid_before():
 def test__Cert_default_not_valid_after():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=13)
+    after = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        weeks=13
+    )
     cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.not_valid_after - after < datetime.timedelta(minutes=1)
 
@@ -755,8 +757,8 @@ def test__CertBuilder_build(public_key):
             [x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CA")]
         ),
         serial_number=1,
-        not_valid_before=datetime.datetime.now(datetime.UTC),
-        not_valid_after=datetime.datetime.now(datetime.UTC)
+        not_valid_before=datetime.datetime.now(datetime.timezone.utc),
+        not_valid_after=datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(days=13),
         is_ca=True,
         public_key=public_key,
@@ -799,8 +801,8 @@ def test__CertBuilder_build_with_san(public_key):
             [x509.NameAttribute(NameOID.ORGANIZATION_NAME, "CA")]
         ),
         serial_number=1,
-        not_valid_before=datetime.datetime.now(datetime.UTC),
-        not_valid_after=datetime.datetime.now(datetime.UTC)
+        not_valid_before=datetime.datetime.now(datetime.timezone.utc),
+        not_valid_after=datetime.datetime.now(datetime.timezone.utc)
         + datetime.timedelta(days=13),
         is_ca=True,
         path_length=8,

@@ -442,7 +442,7 @@ class _Cert:
             is_ca: if CA
         """
         if not_valid_before is None:
-            not_valid_before = datetime.datetime.now(datetime.UTC)
+            not_valid_before = datetime.datetime.now(datetime.timezone.utc)
 
         if not_valid_after is None:
             not_valid_after = not_valid_before + datetime.timedelta(weeks=13)
