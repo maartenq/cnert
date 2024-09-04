@@ -1,11 +1,11 @@
 # .pre-commit-config.yaml
 
 default_language_version:
-  python: python3.10
+  python: python3.12
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: check-added-large-files
       - id: end-of-file-fixer
@@ -13,7 +13,7 @@ repos:
       - id: check-case-conflict
       - id: mixed-line-ending
         args:
-        - --fix=lf
+          - --fix=lf
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict
@@ -24,11 +24,11 @@ repos:
       - id: tox-ini-fmt
 
   - repo: https://github.com/psf/black
-    rev: 24.2.0
+    rev: 24.8.0
     hooks:
       - id: black
 
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: "v0.3.2"
+    rev: "v0.6.3"
     hooks:
       - id: ruff

@@ -6,7 +6,6 @@ import datetime
 import ipaddress
 import re
 
-import cnert
 import pytest
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -14,6 +13,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import ObjectIdentifier, extensions, general_name
 from cryptography.x509.oid import NameOID
+
+import cnert
 
 
 @pytest.fixture
@@ -139,7 +140,7 @@ def test_frozen_attrs_change_attr():
     frozen = Frozen(slot1="frozen")
     with pytest.raises(Exception) as exc:
         frozen.slot1 = "not allowed"
-    assert exc.type == AttributeError
+    assert exc.type is AttributeError
     assert "This object is frozen!" in str(exc.value)
 
 
@@ -152,7 +153,7 @@ def test_frozen_attrs_add_attr():
     frozen = Frozen(slot1="frozen")
     with pytest.raises(Exception) as exc:
         frozen.slot2 = "not allowed"
-    assert exc.type == AttributeError
+    assert exc.type is AttributeError
     assert "This object is frozen!" in str(exc.value)
 
 
@@ -174,7 +175,7 @@ def test_frozen_attrs_del_attr():
     frozen = Frozen(slot1="frozen")
     with pytest.raises(Exception) as exc:
         del frozen.slot1
-    assert exc.type == AttributeError
+    assert exc.type is AttributeError
     assert "This object is frozen!" in str(exc.value)
 
 
@@ -293,7 +294,7 @@ def test_name_attrs_are_valid(default_name_attrs):
 def test_name_attr_invalid():
     with pytest.raises(Exception) as exc:
         cnert.NameAttrs(INVALID_X509_NAME_ATTR="any value")
-    assert exc.type == AttributeError
+    assert exc.type is AttributeError
     assert (
         "type object 'NameOID' has no attribute 'INVALID_X509_NAME_ATTR'"
         in str(exc.value)
@@ -429,7 +430,7 @@ def test_CA_issue_intermediate_max_path_lenght():
     intermediate_2 = intermediate_1.issue_intermediate()
     with pytest.raises(Exception) as exc:
         intermediate_2.issue_intermediate()
-    assert exc.type == ValueError
+    assert exc.type is ValueError
     assert "Can't create intermediate CA: path length is 0" in str(exc.value)
 
 
