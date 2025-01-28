@@ -17,7 +17,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 Cnert makes TLS private keys, CSRs, private CAs and certificates.
 """
 
-__version__ = "0.8.3"
+__version__ = "0.9.2"
 __title__ = "Cnert"
 __description__ = (
     "Cnert makes TLS private keys, CSRs, private CAs and certificates."
