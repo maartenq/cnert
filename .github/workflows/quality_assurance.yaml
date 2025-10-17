@@ -36,7 +36,7 @@ jobs:
         run: task clean
 
       - name: Create or update docs/requirements.txt
-        run: docs:requirements-txt
+        run: task docs:requirements-txt
 
       - name: Install project
         run: task ci:install
