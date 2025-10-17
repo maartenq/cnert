@@ -21,7 +21,7 @@ jobs:
           python-version-file: ".python-version"
 
       - name: Install Task
-        uses: go-task/setup-task@3259c6206f993105e3a61b142c2d97bf4b9ef83d # v1.0.0
+        uses: go-task/setup-task@0ab1b2a65bc55236a3bc64cde78f80e20e8885c2 # v1.0.0
         with:
           version: 3.x
 
