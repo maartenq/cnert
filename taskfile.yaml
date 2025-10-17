@@ -1,0 +1,97 @@
+---
+version: "3"
+
+tasks:
+  default:
+    silent: true
+    desc: Show all tasks
+    cmds:
+      - |-
+        if [ $(command -v "go-task") ]; then
+          go-task --list-all
+        else
+          task --list-all
+        fi
+
+  ci:install:
+    desc: Install with uv (locked)
+    cmds:
+      - uv sync --locked --all-extras
+
+  ci:test:
+    desc: Run pytest with coverage
+    cmds:
+      - uv run -m
+        pytest --verbose --cov --cov-config=pyproject.toml --cov-report=xml
+
+  clean:
+    desc: Remove virtualenv and cache files
+    cmds:
+      - rm -rf
+        .venv
+        .pytest_cache
+        .mypy_cache
+        .ruff_cache
+        .coverage
+        htmlcov
+      - find {{ .TASK_DIR }} -type d -name "__pycache__" -exec rm -r {} +
+
+  cov:
+    desc: Run coverage
+    cmds:
+      - uv run -m coverage erase
+      - uv run -m coverage run -m pytest
+      - uv run -m coverage report
+      - uv run -m coverage html
+      - uv run -m webbrowser "htmlcov/index.html"
+
+  docs:serve:
+    desc: Serve docs
+    cmds:
+      - uv run -m mkdocs serve
+
+  docs:test:
+    desc: Test docs build
+    cmds:
+      - uv run -m mkdocs build --strict
+
+  docs:view:
+    desc: Test docs build
+    cmds:
+      - uv run -m webbrowser "http://127.0.0.1:8000/"
+
+  docs:requirements-txt:
+    desc: Create or update docs/requirements.txt
+    cmds:
+      - uv export
+        --no-hashes
+        --format requirements-txt
+        --no-editable
+        --output-file docs/requirements.txt
+
+  lint:
+    desc: Run formatter & linter
+    cmds:
+      - uv run ruff format --diff
+      - uv run ruff check
+
+  install:
+    desc: Sync virtualenv with `uv`
+    cmds:
+      - uv sync
+
+  fresh:
+    desc: Clean and install
+    cmds:
+      - task: clean
+      - task: install
+
+  test:
+    desc: Run pytest with forwarded args in uv
+    cmds:
+      - uv run -m pytest {{ .CLI_ARGS }}
+
+  typing:
+    desc: Run type checker
+    cmds:
+      - uvx ty check --python .venv src
