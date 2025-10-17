@@ -66,6 +66,7 @@ tasks:
       - uv export
         --no-hashes
         --format requirements-txt
+        --no-editable
         --output-file docs/requirements.txt
 
   lint:
