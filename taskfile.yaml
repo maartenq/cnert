@@ -28,12 +28,15 @@ tasks:
     desc: Remove virtualenv and cache files
     cmds:
       - rm -rf
-        .venv
-        .pytest_cache
-        .mypy_cache
-        .ruff_cache
         .coverage
+        .mypy_cache
+        .pytest_cache
+        .ruff_cache
+        .venv
+        coverage.xml
+        dist
         htmlcov
+        site
       - find {{ .TASK_DIR }} -type d -name "__pycache__" -exec rm -r {} +
 
   cov:
