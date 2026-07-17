@@ -10,6 +10,7 @@ theme:
 nav:
   - index.md
   - cnert.md
+  - releasing.md
 
 watch:
   - src
