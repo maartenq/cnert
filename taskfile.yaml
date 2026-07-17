@@ -125,3 +125,8 @@ tasks:
     silent: true
     cmds:
       - uv version --short
+
+  bump:
+    desc: "Bump version (task bump -- patch|minor|major)"
+    cmds:
+      - uv version --bump {{ .CLI_ARGS }}
