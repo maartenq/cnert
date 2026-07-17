@@ -1,5 +1,9 @@
-# Created by https://www.toptal.com/developers/gitignore/api/macos,vim,python
-# Edit at https://www.toptal.com/developers/gitignore?templates=macos,vim,python
+# Created by https://www.toptal.com/developers/gitignore/api/macos,vim,python,direnv
+# Edit at https://www.toptal.com/developers/gitignore?templates=macos,vim,python,direnv
+
+### direnv ###
+.direnv
+.envrc
 
 ### macOS ###
 # General
@@ -226,7 +230,4 @@ tags
 # Persistent undo
 [._]*.un~
 
-# End of https://www.toptal.com/developers/gitignore/api/macos,vim,python
-
-# direnv
-.envrc
+# End of https://www.toptal.com/developers/gitignore/api/macos,vim,python,direnv
