@@ -611,8 +611,8 @@ class _Cert:
             The binary value of the subject key identifier in hexadecimal
             and upper case.
         """
-        ext = self.certificate.extensions.get_extension_for_oid(
-            x509.ExtensionOID.SUBJECT_KEY_IDENTIFIER
+        ext = self.certificate.extensions.get_extension_for_class(
+            x509.SubjectKeyIdentifier
         )
         return bytes.hex(ext.value.key_identifier).upper()
 
@@ -630,9 +630,11 @@ class _Cert:
             subject key identifier extension.
         """
         try:
-            ext = self.certificate.extensions.get_extension_for_oid(
-                x509.ExtensionOID.AUTHORITY_KEY_IDENTIFIER
+            ext = self.certificate.extensions.get_extension_for_class(
+                x509.AuthorityKeyIdentifier
             )
+            if ext.value.key_identifier is None:
+                return None
             return bytes.hex(ext.value.key_identifier).upper()
         except x509.ExtensionNotFound:
             return None
