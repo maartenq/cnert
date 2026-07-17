@@ -1,6 +1,6 @@
 # cnert/__init__.py
 
-from __future__ import annotations  # for Python 3.7-3.9
+from __future__ import annotations  # lazy annotations; drop when floor >= 3.14
 
 import datetime
 from importlib.metadata import version
@@ -9,7 +9,6 @@ from typing import ClassVar
 
 import idna
 from cryptography import x509
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
@@ -44,7 +43,6 @@ def build_private_key(
     return rsa.generate_private_key(
         public_exponent=public_exponent,
         key_size=key_size,
-        backend=default_backend(),
     )
 
 
@@ -332,7 +330,7 @@ class _CertBuilder:
 
     def build(
         self,
-        sans: tuple[()] | tuple[str, ...],
+        sans: tuple[str, ...],
         subject_attrs_X509_name: x509.Name,
         issuer_attrs_X509_name: x509.Name,
         serial_number: int,
@@ -390,7 +388,6 @@ class _CertBuilder:
         return self.builder.sign(
             private_key=private_key,
             algorithm=hashes.SHA256(),
-            backend=default_backend(),
         )
 
 
@@ -443,7 +440,7 @@ class _Cert:
             is_ca: if CA
         """
         if not_valid_before is None:
-            not_valid_before = datetime.datetime.now(datetime.timezone.utc)
+            not_valid_before = datetime.datetime.now(datetime.UTC)
 
         if not_valid_after is None:
             not_valid_after = not_valid_before + datetime.timedelta(weeks=13)
@@ -699,7 +696,6 @@ class CSR:
         csr = self._csr_builder.sign(
             private_key=self.private_key,
             algorithm=hashes.SHA256(),
-            backend=default_backend(),
         )
         self.pem = csr.public_bytes(serialization.Encoding.PEM)
         return csr
