@@ -3,6 +3,7 @@
 from __future__ import annotations  # for Python 3.7-3.9
 
 import datetime
+from importlib.metadata import version
 from ipaddress import ip_address, ip_network
 from typing import ClassVar
 
@@ -17,7 +18,7 @@ from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 Cnert makes TLS private keys, CSRs, private CAs and certificates.
 """
 
-__version__ = "0.9.2"
+__version__ = version("cnert")
 __title__ = "Cnert"
 __description__ = (
     "Cnert makes TLS private keys, CSRs, private CAs and certificates."
