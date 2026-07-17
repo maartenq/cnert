@@ -134,8 +134,10 @@ tasks:
     desc: "Release (task release -- patch|minor|major): bump, commit, tag, push"
     cmds:
       - task: git:check
+      - uv run python scripts/release_changelog.py --check
       - uv version --bump {{ .CLI_ARGS }}
-      - git add pyproject.toml uv.lock
-      - 'git commit -m "chore: bump version to $(uv version --short)"'
+      - uv run python scripts/release_changelog.py "$(uv version --short)"
+      - git add pyproject.toml uv.lock CHANGELOG.md
+      - 'git commit -m "chore: release $(uv version --short)"'
       - git tag -a "$(uv version --short)" -m "$(uv version --short)"
       - git push --follow-tags

@@ -17,6 +17,14 @@ The rule that avoids tag/version drift:
 > **The tag must equal `pyproject.toml`'s version, and must point at the
 > commit that sets it.** Bump first, commit, then tag.
 
+## Changelog
+
+Record changes in `CHANGELOG.md` under `## [Unreleased]` **as you
+work**, not at release time. `task release` stamps that section into a
+dated `[X.Y.Z]` section inside the release commit, so the changelog is
+never updated after the fact. It refuses to release when `[Unreleased]`
+is empty.
+
 ## Release in one command
 
 ```console
@@ -34,7 +42,8 @@ tag push triggers the release workflow.
 
 ```console
 task bump -- patch                       # edits pyproject.toml + uv.lock
-git commit -am "chore: bump version to $(uv version --short)"
+python scripts/release_changelog.py "$(uv version --short)"
+git commit -am "chore: release $(uv version --short)"
 git tag -a "$(uv version --short)" -m "$(uv version --short)"
 git push --follow-tags
 ```
