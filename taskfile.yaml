@@ -82,9 +82,8 @@ tasks:
     desc: Check if git repo is clean
     cmds:
       - test -z "$(git status --porcelain)"
-        || echo "[Error] Git repository has uncommitted changes.
-        Please commit or stash them first."
-        && false
+        || { echo "[Error] Git repository has uncommitted changes.
+        Please commit or stash them first." && false; }
 
   lint:
     desc: Run formatter & linter
