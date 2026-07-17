@@ -9,6 +9,11 @@ into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- Internal only: a `CHANGELOG.md`, and a release flow that stamps
+  `[Unreleased]` notes into a dated section within the release commit.
+
 ## [0.10.2] - 2026-07-17
 
 ### Changed
