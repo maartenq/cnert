@@ -1,6 +1,6 @@
 [project]
 name = "cnert"
-version = "0.10.2"
+version = "0.10.3"
 description = "Cnert is trying to be a simple API for creating TLS Certificates testing purposes."
 authors = [{ name = "Maarten", email = "<ikmaarten@gmail.com>" }]
 requires-python = ">=3.12"

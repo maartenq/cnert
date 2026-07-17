@@ -9,6 +9,8 @@ into a dated version section.
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-07-17
+
 ### Added
 
 - Internal only: a `CHANGELOG.md`, and a release flow that stamps
@@ -46,7 +48,8 @@ into a dated version section.
 
 - Support for Python 3.14.
 
-[Unreleased]: https://github.com/maartenq/cnert/compare/0.10.2...HEAD
+[Unreleased]: https://github.com/maartenq/cnert/compare/0.10.3...HEAD
+[0.10.3]: https://github.com/maartenq/cnert/releases/tag/0.10.3
 [0.10.2]: https://github.com/maartenq/cnert/releases/tag/0.10.2
 [0.10.1]: https://github.com/maartenq/cnert/releases/tag/0.10.1
 [0.10.0]: https://github.com/maartenq/cnert/releases/tag/0.10.0
