@@ -9,6 +9,27 @@ into a dated version section.
 
 ## [Unreleased]
 
+### Changed
+
+- `_Cert` is renamed to `Cert`: it was always returned by the public
+  `CA.issue_cert()`, so consumers had to reference a private name to
+  annotate their code. `cnert._Cert` remains as a deprecated alias.
+- `NameAttrs` is now hashable (it is frozen), and comparing it to a
+  non-`NameAttrs` object returns `NotImplemented` instead of raising
+  `AttributeError`.
+- Better annotations throughout: typed `NameAttrs(**kwargs: str)`,
+  class-level attribute annotations on `Cert`/`CSR`/`CA`, `@override`
+  markers, and a `[tool.basedpyright]` section so editor LSPs check
+  clean. `Freezer` no longer mutates a shared `__slots__` list (it had
+  no slotting effect and grew per instantiation).
+
+### Fixed
+
+- `NameAttrs.allowed_keys()` no longer depends on
+  `cls.__dict__["__annotations__"]`, which breaks under PEP 649 lazy
+  annotations once `from __future__ import annotations` is dropped on
+  Python >= 3.14.
+
 ## [0.10.3] - 2026-07-17
 
 ### Added

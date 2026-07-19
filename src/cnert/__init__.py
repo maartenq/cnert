@@ -5,7 +5,7 @@ from __future__ import annotations  # lazy annotations; drop when floor >= 3.14
 import datetime
 from importlib.metadata import version
 from ipaddress import ip_address, ip_network
-from typing import ClassVar
+from typing import cast, override
 
 import idna
 from cryptography import x509
@@ -84,23 +84,22 @@ class Freezer:
     Freeze any class such that instantiated objects become immutable.
     """
 
-    __slots__: ClassVar[list[str]] = []
     _frozen: bool = False
 
-    def __init__(self):
-        for attr_name in dir(self):
-            self.__slots__.append(attr_name)
+    def __init__(self) -> None:
         self._frozen = True
 
-    def __delattr__(self, *args, **kwargs):
+    @override
+    def __delattr__(self, name: str) -> None:
         if self._frozen:
             raise AttributeError("This object is frozen!")
-        object.__delattr__(self, *args, **kwargs)
+        object.__delattr__(self, name)
 
-    def __setattr__(self, *args, **kwargs):
+    @override
+    def __setattr__(self, name: str, value: object) -> None:
         if self._frozen:
             raise AttributeError("This object is frozen!")
-        object.__setattr__(self, *args, **kwargs)
+        object.__setattr__(self, name, value)
 
 
 class NameAttrs(Freezer):
@@ -122,7 +121,7 @@ class NameAttrs(Freezer):
         'example.com'
         >>> subject_attrs.dict_
         {'COMMON_NAME': 'example.com'}
-        >>> subject_attrs.x509_name
+        >>> subject_attrs.x509_name()
         <Name(CN=example.com)>
     """
 
@@ -155,15 +154,14 @@ class NameAttrs(Freezer):
     USER_ID: str
     X500_UNIQUE_IDENTIFIER: str
 
-    def __init__(self, **kwargs) -> None:
-        self._name_oids: list[x509.NameAttribute] = []
+    def __init__(self, **kwargs: str) -> None:
+        self._name_oids: list[x509.NameAttribute[str]] = []
         self.dict_: dict[str, str] = {}
         keys = list(kwargs.keys())
         keys.sort()
         for key in keys:
-            self._name_oids.append(
-                x509.NameAttribute(getattr(NameOID, key), kwargs[key])
-            )
+            oid = cast(x509.ObjectIdentifier, getattr(NameOID, key))
+            self._name_oids.append(x509.NameAttribute(oid, kwargs[key]))
             setattr(self, key, kwargs[key])
             self.dict_[key] = kwargs[key]
         super().__init__()
@@ -218,14 +216,26 @@ class NameAttrs(Freezer):
         Returns:
             A list of valid key attributes.
         """
-        return sorted(self.__class__.__dict__["__annotations__"].keys())
+        # type(...).__annotations__ (not __dict__ lookup) keeps this
+        # working under PEP 649's lazy annotations on Python >= 3.14.
+        return sorted(type(self).__annotations__.keys())
 
-    def __eq__(self, other) -> bool:
+    @override
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, NameAttrs):
+            return NotImplemented
         return self.dict_ == other.dict_
 
+    @override
+    def __hash__(self) -> int:
+        # Instances are frozen, so hashing by content is safe.
+        return hash(tuple(self.dict_.items()))
+
+    @override
     def __str__(self) -> str:
         return self.x509_name().rfc4514_string()
 
+    @override
     def __repr__(self) -> str:
         args = ", ".join(f'{x[0]}="{x[1]}"' for x in self.dict_.items())
         return f"NameAttrs({args})"
@@ -235,6 +245,8 @@ class _CertBuilder:
     """
     Builds and signs a X509 Certificate.
     """
+
+    builder: x509.CertificateBuilder
 
     def __init__(self) -> None:
         self.builder = x509.CertificateBuilder()
@@ -391,9 +403,9 @@ class _CertBuilder:
         )
 
 
-class _Cert:
+class Cert:
     """
-    A _Cert object.
+    A Cert object.
 
     This object is returned by [`cnert.CA().issue_cert()`][cnert.CA.issue_cert]
 
@@ -411,6 +423,19 @@ class _Cert:
         datetime.datetime(2023, 6, 23, 23, 56, 55, 901545)
     """
 
+    sans: tuple[str, ...]
+    subject_attrs: NameAttrs
+    issuer_attrs: NameAttrs
+    parent: Cert | None
+    not_valid_before: datetime.datetime
+    not_valid_after: datetime.datetime
+    serial_number: int
+    path_length: int
+    is_ca: bool
+    private_key: rsa.RSAPrivateKey
+    certificate: x509.Certificate
+    pem: bytes
+
     def __init__(
         self,
         *sans: str,
@@ -419,13 +444,13 @@ class _Cert:
         not_valid_before: datetime.datetime | None = None,
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
-        parent: _Cert | None = None,
+        parent: Cert | None = None,
         private_key: rsa.RSAPrivateKey | None = None,
         path_length: int = 0,
         is_ca: bool = False,
     ) -> None:
         """
-        Initialize a _Cert object.
+        Initialize a Cert object.
 
         Parameters:
             sans: Subject Alternative Names as positional arguments
@@ -464,7 +489,7 @@ class _Cert:
         self.is_ca = is_ca
         self._build_certificate()
 
-    def _build_certificate(self):
+    def _build_certificate(self) -> None:
         cert_builder = _CertBuilder()
         cert_builder.build(
             sans=self.sans,
@@ -637,6 +662,7 @@ class _Cert:
         except x509.ExtensionNotFound:
             return None
 
+    @override
     def __str__(self) -> str:
         return f"Certificate {self.subject_attrs}"
 
@@ -654,6 +680,12 @@ class CSR:
         private_key: RSA private key
 
     """
+
+    sans: tuple[str, ...]
+    subject_attrs: NameAttrs
+    private_key: rsa.RSAPrivateKey
+    CSR: x509.CertificateSigningRequest
+    pem: bytes
 
     def __init__(
         self,
@@ -675,7 +707,7 @@ class CSR:
         else:
             self.private_key = private_key
 
-        self._csr_builder = (
+        self._csr_builder: x509.CertificateSigningRequestBuilder = (
             x509.CertificateSigningRequestBuilder().subject_name(
                 subject_attrs.x509_name()
             )
@@ -720,6 +752,7 @@ class CSR:
     def public_key(self) -> rsa.RSAPublicKey:
         return self.private_key.public_key()
 
+    @override
     def __str__(self) -> str:
         return f"Certificate {self.subject_attrs}"
 
@@ -747,6 +780,10 @@ class CA:
         intermediate_num: Number of intermediates.
     """
 
+    intermediate_num: int
+    parent: CA | None
+    cert: Cert
+
     def __init__(
         self,
         subject_attrs: NameAttrs | None = None,
@@ -767,21 +804,18 @@ class CA:
         if issuer_attrs is None:
             issuer_attrs = subject_attrs
 
-        self.cert = _Cert(
+        self.cert = Cert(
             subject_attrs=subject_attrs,
             issuer_attrs=issuer_attrs,
             path_length=path_length,
             not_valid_before=not_valid_before,
             not_valid_after=not_valid_after,
             serial_number=serial_number,
-            parent=(
-                self.parent.cert  # type: ignore[has-type]
-                if self.parent is not None
-                else None
-            ),
+            parent=(self.parent.cert if self.parent is not None else None),
             is_ca=True,
         )
 
+    @override
     def __str__(self) -> str:
         return f"CA {self.cert.subject_attrs}"
 
@@ -841,7 +875,7 @@ class CA:
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         csr: CSR | None = None,
-    ) -> _Cert:
+    ) -> Cert:
         """
         Issues a certificate
 
@@ -858,7 +892,7 @@ class CA:
             csr: A CSR object.
 
         Returns:
-            A _Cert object.
+            A Cert object.
 
         """
         if csr:
@@ -872,7 +906,7 @@ class CA:
                     subject_attrs = NameAttrs(COMMON_NAME=sans[0])
                 else:
                     subject_attrs = NameAttrs(COMMON_NAME="example.com")
-        return _Cert(
+        return Cert(
             *sans,
             subject_attrs=subject_attrs,
             issuer_attrs=self.cert.subject_attrs,
@@ -882,3 +916,8 @@ class CA:
             parent=self.cert,
             private_key=private_key,
         )
+
+
+# Deprecated alias: Cert was named _Cert through 0.10.x although public
+# API (`CA.issue_cert`) returned it. Kept for backwards compatibility.
+_Cert = Cert

@@ -488,7 +488,7 @@ def test__Cert__str__():
         COUNTRY_NAME="AQ",
         ORGANIZATION_NAME="Acme",
     )
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert str(cert) == "Certificate O=Acme,C=AQ,CN=www.example.com"
 
 
@@ -496,7 +496,7 @@ def test__Cert_default_not_valid_before():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     before = datetime.datetime.now(datetime.UTC)
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.not_valid_before - before < datetime.timedelta(minutes=1)
 
 
@@ -504,21 +504,21 @@ def test__Cert_default_not_valid_after():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
     after = datetime.datetime.now(datetime.UTC) + datetime.timedelta(weeks=13)
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.not_valid_after - after < datetime.timedelta(minutes=1)
 
 
 def test__Cert_private_key_size():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.private_key.key_size == 2048
 
 
 def test__Cert_private_key_pem_PKCS1():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.private_key_pem_PKCS1.startswith(
         b"-----BEGIN RSA PRIVATE KEY-----\n"
     )
@@ -530,7 +530,7 @@ def test__Cert_private_key_pem_PKCS1():
 def test__Cert_private_key_pem_with_given_private_key(private_key):
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(
+    cert = cnert.Cert(
         subject_attrs=subject_attrs,
         issuer_attrs=issuer_attrs,
         private_key=private_key,
@@ -546,7 +546,7 @@ def test__Cert_private_key_pem_with_given_private_key(private_key):
 def test__Cert_private_key_size_with_given_private_key(private_key):
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(
+    cert = cnert.Cert(
         subject_attrs=subject_attrs,
         issuer_attrs=issuer_attrs,
         private_key=private_key,
@@ -557,7 +557,7 @@ def test__Cert_private_key_size_with_given_private_key(private_key):
 def test__Cert_private_key_pem_PKCS1_with_given_private_key(private_key):
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(
+    cert = cnert.Cert(
         subject_attrs=subject_attrs,
         issuer_attrs=issuer_attrs,
         private_key=private_key,
@@ -573,7 +573,7 @@ def test__Cert_private_key_pem_PKCS1_with_given_private_key(private_key):
 def test__Cert_private_key_pem_PKCS8():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.private_key_pem_PKCS8.startswith(
         b"-----BEGIN PRIVATE KEY-----\n"
     )
@@ -585,7 +585,7 @@ def test__Cert_private_key_pem_PKCS8():
 def test__Cert_public_key_pem_PKCS1():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert.public_key_pem.startswith(b"-----BEGIN PUBLIC KEY-----\n")
     assert cert.public_key_pem.endswith(b"\n-----END PUBLIC KEY-----\n")
 
@@ -593,14 +593,14 @@ def test__Cert_public_key_pem_PKCS1():
 def test__Cert_public_key():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert isinstance(cert.public_key, rsa.RSAPublicKey)
 
 
 def test__Cert_serialnumber_is_42():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert = cnert._Cert(
+    cert = cnert.Cert(
         subject_attrs=subject_attrs,
         issuer_attrs=issuer_attrs,
         serial_number=42,
@@ -635,8 +635,8 @@ def test__Cert_authority_key_identifier_digest_is_None_for_ca_cert(ca_cert):
 def test__Cert_serialnumber_is_random():
     issuer_attrs = cnert.NameAttrs(ORGANIZATION_NAME="CA")
     subject_attrs = cnert.NameAttrs(COMMON_NAME="example.com")
-    cert1 = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
-    cert2 = cnert._Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert1 = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
+    cert2 = cnert.Cert(subject_attrs=subject_attrs, issuer_attrs=issuer_attrs)
     assert cert1.serial_number != cert2.serial_number
 
 
@@ -903,3 +903,18 @@ def test__CSR_private_key_pem_PKCS8():
 def test_CSR_public_key():
     csr = cnert.CSR()
     assert isinstance(csr.public_key, rsa.RSAPublicKey)
+
+
+def test_name_attrs_eq_other_type_is_not_implemented():
+    assert cnert.NameAttrs(COMMON_NAME="example.com") != "example.com"
+
+
+def test_name_attrs_is_hashable():
+    a = cnert.NameAttrs(COMMON_NAME="example.com")
+    b = cnert.NameAttrs(COMMON_NAME="example.com")
+    assert hash(a) == hash(b)
+    assert len({a, b}) == 1
+
+
+def test_cert_deprecated_alias():
+    assert cnert._Cert is cnert.Cert

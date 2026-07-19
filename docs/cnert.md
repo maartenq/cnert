@@ -6,15 +6,22 @@
 
 ### Class cnert.NameAttrs
 
+Instances are frozen and hashable; comparing against a non-`NameAttrs`
+object returns `False` instead of raising.
+
 ::: cnert.NameAttrs
 
 ### Class cnert._CertBuilder
 
 ::: cnert._CertBuilder
 
-### Class cnert._Cert
+### Class cnert.Cert
 
-::: cnert._Cert
+`Cert` was named `_Cert` through 0.10.x even though the public
+`CA.issue_cert()` returned it; the old name remains as a deprecated
+alias.
+
+::: cnert.Cert
 
 ### Class cnert.CSR
 

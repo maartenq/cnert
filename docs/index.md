@@ -4,7 +4,7 @@ Cnert is simple Python API for creating TLS Certificates and stuff for testing
 purposes (on top of [cryptography]).
 
 [cnert.CA][] makes it easy to create CAs, intermediate CAs. These CA objects
-can then issue directly [certificates][cnert._Cert].
+can then issue directly [certificates][cnert.Cert].
 
 Cnert can make CSRs. CA objects also use these to issue certificates.
 
