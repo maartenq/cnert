@@ -22,6 +22,8 @@ into a dated version section.
   markers, and a `[tool.basedpyright]` section so editor LSPs check
   clean. `Freezer` no longer mutates a shared `__slots__` list (it had
   no slotting effect and grew per instantiation).
+- Minimum dependencies raised to `cryptography>=50.0.1` and
+  `idna>=3.19`, ahead of widening key-type support.
 
 ### Fixed
 
