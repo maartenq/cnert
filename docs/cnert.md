@@ -9,6 +9,28 @@
 Instances are frozen and hashable; comparing against a non-`NameAttrs`
 object returns `False` instead of raising.
 
+A value may be a sequence, which emits one attribute per value in the
+order given. That is how a distinguished name repeats an attribute
+type, which a lossless DN parse has to be tested against:
+
+```python
+import cnert
+
+subject = cnert.NameAttrs(
+    COMMON_NAME="example.com", ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"]
+)
+```
+
+Each value becomes its own relative distinguished name. The
+plus-joined `OU=A+OU=B` form, one relative distinguished name holding
+both, is not reachable this way. A multi-valued attribute reads back
+as a tuple. Note that `rfc4514_string()` prints most-specific first,
+so it renders the name above with `OU-B` before `OU-A`; the attribute
+order is still the one given.
+
+Anything that is not a `NameAttrs` passed as `subject_attrs` or
+`issuer_attrs` raises `TypeError`.
+
 ::: cnert.NameAttrs
 
 ### Class cnert._CertBuilder
@@ -38,9 +60,18 @@ accepts: `rsa` (the default), `ed25519`, `ed448`, and the curve names
 `secp256r1`, `secp384r1` and `secp521r1`.
 
 Signature hashes are chosen with the `signature_hash` argument on
-`Cert`, `CSR`, `CA` and `CA.issue_cert()`. It defaults to SHA-256, and
-to `None` for an Edwards key, which signs without a separate hash.
-SHA-1 and MD5 are refused: they cannot sign an X.509 certificate.
+`Cert`, `CSR`, `CA` and `CA.issue_cert()`. It takes a name from
+`cnert.SIGNATURE_HASHES` or a `cryptography` hash object:
+
+```python
+import cnert
+
+cert = cnert.CA().issue_cert("example.com", signature_hash="sha512")
+```
+
+It defaults to SHA-256, and to `None` for an Edwards key, which signs
+without a separate hash. SHA-1 and MD5 are refused by either form:
+they cannot sign an X.509 certificate.
 
 ### Extra extensions
 
@@ -61,6 +92,20 @@ A supplied extension whose object identifier matches one cnert adds by
 itself replaces cnert's version wholesale, keeping its position. That
 makes the argument an override as well as an addition, and it is the
 only way to change key usage or basic constraints.
+
+To subtract instead, pass `builtin_extensions=False`. Only the
+supplied pairs are then added, subject alternative names included, so
+a bare certificate carrying exactly one chosen extension is one call:
+
+```python
+import cnert
+
+bare = cnert.CA().issue_cert("example.com", builtin_extensions=False)
+```
+
+A certificate built that way is not valid for any real use, and an
+authority built that way is not a usable authority. That is the point.
+It is how a parser test proves an absent extension reads as absent.
 
 ### Supplying keys
 

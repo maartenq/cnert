@@ -56,19 +56,31 @@ KEY_ALGORITHMS: tuple[str, ...] = ("rsa", *_KEY_BUILDERS)
 # type requires one.
 _EDWARDS_KEYS = (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)
 
-# The hashes usable for an X.509 signature. `cryptography` types this
-# set as a module-private union, so cnert keeps its own copy: SHA-1 and
-# MD5 are refused outright, and there is no way to sign with them.
-_ALLOWED_HASHES = (
-    hashes.SHA224,
-    hashes.SHA256,
-    hashes.SHA384,
-    hashes.SHA512,
-    hashes.SHA3_224,
-    hashes.SHA3_256,
-    hashes.SHA3_384,
-    hashes.SHA3_512,
-)
+# The hashes usable for an X.509 signature, by the name
+# `signature_hash` takes. `cryptography` types this set as a
+# module-private union, so cnert keeps its own copy.
+_SIGNABLE_HASHES: dict[str, type[hashes.HashAlgorithm]] = {
+    "sha224": hashes.SHA224,
+    "sha256": hashes.SHA256,
+    "sha384": hashes.SHA384,
+    "sha512": hashes.SHA512,
+    "sha3_224": hashes.SHA3_224,
+    "sha3_256": hashes.SHA3_256,
+    "sha3_384": hashes.SHA3_384,
+    "sha3_512": hashes.SHA3_512,
+}
+
+# Recognised but refused: naming one of these gets the reason, not
+# "unknown hash". There is no way to sign an X.509 certificate with
+# either.
+_REFUSED_HASHES: dict[str, type[hashes.HashAlgorithm]] = {
+    "sha1": hashes.SHA1,
+    "md5": hashes.MD5,
+}
+
+_HASH_BY_NAME = _SIGNABLE_HASHES | _REFUSED_HASHES
+_ALLOWED_HASHES = tuple(_SIGNABLE_HASHES.values())
+SIGNATURE_HASHES: tuple[str, ...] = tuple(_SIGNABLE_HASHES)
 
 
 class _UnsetType:
@@ -138,19 +150,22 @@ def build_private_key(
 
 def _signature_hash_for(
     private_key: CertificateIssuerPrivateKeyTypes,
-    signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+    signature_hash: (hashes.HashAlgorithm | str | _UnsetType | None) = _UNSET,
 ) -> hashes.HashAlgorithm | None:
     """
     Resolve and validate the signature hash for a signing key.
 
     Parameters:
         private_key: The key that will do the signing.
-        signature_hash: The requested hash, `None` for Edwards keys, or
-            unset to take the default for the key type.
+        signature_hash: A name from `cnert.SIGNATURE_HASHES`, a hash
+            object, `None` for Edwards keys, or unset to take the
+            default for the key type.
 
     Raises:
         ValueError: If a hash is given for an Edwards key, withheld
-            for any other key type, or unusable for signatures.
+            for any other key type, unusable for signatures, or named
+            by a string that is no known hash.
+        TypeError: If it is neither a name, a hash object, nor `None`.
 
     Returns:
         The hash to sign with, or `None` for an Edwards key.
@@ -158,6 +173,22 @@ def _signature_hash_for(
     is_edwards = isinstance(private_key, _EDWARDS_KEYS)
     if isinstance(signature_hash, _UnsetType):
         return None if is_edwards else hashes.SHA256()
+    if isinstance(signature_hash, str):
+        try:
+            signature_hash = _HASH_BY_NAME[signature_hash]()
+        except KeyError:
+            raise ValueError(
+                f"unknown signature hash {signature_hash!r}; "
+                f"pick one of {', '.join(SIGNATURE_HASHES)}, or pass "
+                "a cryptography hash object"
+            ) from None
+    if signature_hash is not None and not isinstance(
+        signature_hash, hashes.HashAlgorithm
+    ):
+        raise TypeError(
+            "signature_hash takes a name or a hash object, not "
+            f"{type(signature_hash).__name__}"
+        )
     if is_edwards and signature_hash is not None:
         raise ValueError(
             "Ed25519 and Ed448 keys take no signature hash; pass None"
@@ -253,6 +284,29 @@ def identity_string_to_x509(identity: str) -> x509.GeneralName:
             return x509.DNSName(idna_encode(identity))
 
 
+def _render_name_value(value: str | tuple[str, ...]) -> str:
+    """
+    Render a name attribute value the way a caller would type it.
+    """
+    if isinstance(value, str):
+        return f'"{value}"'
+    return "[" + ", ".join(f'"{one}"' for one in value) + "]"
+
+
+def _check_name_attrs(value: object, argument: str) -> NameAttrs:
+    """
+    Reject anything that is not a NameAttrs, naming the argument.
+
+    Raises:
+        TypeError: If the value is not a `NameAttrs`.
+    """
+    if not isinstance(value, NameAttrs):
+        raise TypeError(
+            f"{argument} takes a NameAttrs, not {type(value).__name__}"
+        )
+    return value
+
+
 class Freezer:
     """
     Freeze any class such that instantiated objects become immutable.
@@ -299,45 +353,64 @@ class NameAttrs(Freezer):
         <Name(CN=example.com)>
     """
 
-    BUSINESS_CATEGORY: str
-    COMMON_NAME: str
-    COUNTRY_NAME: str
-    DN_QUALIFIER: str
-    DOMAIN_COMPONENT: str
-    EMAIL_ADDRESS: str
-    GENERATION_QUALIFIER: str
-    GIVEN_NAME: str
-    INN: str
-    JURISDICTION_COUNTRY_NAME: str
-    JURISDICTION_LOCALITY_NAME: str
-    JURISDICTION_STATE_OR_PROVINCE_NAME: str
-    LOCALITY_NAME: str
-    OGRN: str
-    ORGANIZATIONAL_UNIT_NAME: str
-    ORGANIZATION_NAME: str
-    POSTAL_ADDRESS: str
-    POSTAL_CODE: str
-    PSEUDONYM: str
-    SERIAL_NUMBER: str
-    SNILS: str
-    STATE_OR_PROVINCE_NAME: str
-    STREET_ADDRESS: str
-    SURNAME: str
-    TITLE: str
-    UNSTRUCTURED_NAME: str
-    USER_ID: str
-    X500_UNIQUE_IDENTIFIER: str
+    BUSINESS_CATEGORY: str | tuple[str, ...]
+    COMMON_NAME: str | tuple[str, ...]
+    COUNTRY_NAME: str | tuple[str, ...]
+    DN_QUALIFIER: str | tuple[str, ...]
+    DOMAIN_COMPONENT: str | tuple[str, ...]
+    EMAIL_ADDRESS: str | tuple[str, ...]
+    GENERATION_QUALIFIER: str | tuple[str, ...]
+    GIVEN_NAME: str | tuple[str, ...]
+    INN: str | tuple[str, ...]
+    JURISDICTION_COUNTRY_NAME: str | tuple[str, ...]
+    JURISDICTION_LOCALITY_NAME: str | tuple[str, ...]
+    JURISDICTION_STATE_OR_PROVINCE_NAME: str | tuple[str, ...]
+    LOCALITY_NAME: str | tuple[str, ...]
+    OGRN: str | tuple[str, ...]
+    ORGANIZATIONAL_UNIT_NAME: str | tuple[str, ...]
+    ORGANIZATION_NAME: str | tuple[str, ...]
+    POSTAL_ADDRESS: str | tuple[str, ...]
+    POSTAL_CODE: str | tuple[str, ...]
+    PSEUDONYM: str | tuple[str, ...]
+    SERIAL_NUMBER: str | tuple[str, ...]
+    SNILS: str | tuple[str, ...]
+    STATE_OR_PROVINCE_NAME: str | tuple[str, ...]
+    STREET_ADDRESS: str | tuple[str, ...]
+    SURNAME: str | tuple[str, ...]
+    TITLE: str | tuple[str, ...]
+    UNSTRUCTURED_NAME: str | tuple[str, ...]
+    USER_ID: str | tuple[str, ...]
+    X500_UNIQUE_IDENTIFIER: str | tuple[str, ...]
 
-    def __init__(self, **kwargs: str) -> None:
+    def __init__(self, **kwargs: str | Sequence[str]) -> None:
+        """
+        Parameters:
+            kwargs: Attribute types from
+                [`allowed_keys()`][cnert.NameAttrs.allowed_keys],
+                each with a value or a sequence of values. A sequence
+                emits one attribute per value in the order given, so
+                `ORGANIZATIONAL_UNIT_NAME=["A", "B"]` renders as
+                `OU=A,OU=B`. Attribute types are ordered
+                alphabetically; only values within one type follow
+                the caller.
+        """
         self._name_oids: list[x509.NameAttribute[str]] = []
-        self.dict_: dict[str, str] = {}
+        self.dict_: dict[str, str | tuple[str, ...]] = {}
         keys = list(kwargs.keys())
         keys.sort()
         for key in keys:
             oid = cast(x509.ObjectIdentifier, getattr(NameOID, key))
-            self._name_oids.append(x509.NameAttribute(oid, kwargs[key]))
-            setattr(self, key, kwargs[key])
-            self.dict_[key] = kwargs[key]
+            given = kwargs[key]
+            # A single string is stored unchanged, so repr, equality
+            # and hashing of an ordinary name do not move. A sequence
+            # becomes a tuple: instances are frozen and hashed by
+            # content, and a list would break that.
+            values = (given,) if isinstance(given, str) else tuple(given)
+            value = given if isinstance(given, str) else values
+            for one in values:
+                self._name_oids.append(x509.NameAttribute(oid, one))
+            setattr(self, key, value)
+            self.dict_[key] = value
         super().__init__()
 
     def x509_name(self) -> x509.Name:
@@ -411,7 +484,10 @@ class NameAttrs(Freezer):
 
     @override
     def __repr__(self) -> str:
-        args = ", ".join(f'{x[0]}="{x[1]}"' for x in self.dict_.items())
+        args = ", ".join(
+            f"{key}={_render_name_value(value)}"
+            for key, value in self.dict_.items()
+        )
         return f"NameAttrs({args})"
 
 
@@ -534,6 +610,7 @@ class _CertBuilder:
         issuer_public_key: CertificateIssuerPublicKeyTypes | None = None,
         path_length: int | None = None,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        builtin_extensions: bool = True,
     ) -> None:
         """
         Does the Certificate building.
@@ -551,6 +628,9 @@ class _CertBuilder:
             path_length: Max path length.
             extensions: Extra `(extension, critical)` pairs. One that
                 collides with a built-in extension replaces it.
+            builtin_extensions: Add cnert's own extensions. When
+                false, only the supplied pairs are added, subject
+                alternative names included.
         """
         self.builder = (
             self.builder.subject_name(subject_attrs_X509_name)
@@ -560,22 +640,31 @@ class _CertBuilder:
             .not_valid_before(not_valid_before)
             .not_valid_after(not_valid_after)
         )
-        built_in: list[tuple[x509.ExtensionType, bool]] = [
-            (x509.SubjectKeyIdentifier.from_public_key(public_key), False),
-            (
-                x509.BasicConstraints(ca=is_ca, path_length=path_length),
-                True,
-            ),
-        ]
-        if issuer_public_key is not None:
+        built_in: list[tuple[x509.ExtensionType, bool]] = []
+        if builtin_extensions:
             built_in.append(
-                self._authority_key_identifier_extension(issuer_public_key)
+                (
+                    x509.SubjectKeyIdentifier.from_public_key(public_key),
+                    False,
+                )
             )
-        built_in.extend(
-            self._ca_extensions() if is_ca else self._leaf_cert_extensions()
-        )
-        if sans:
-            built_in.append(self._subject_alt_name_extension(*sans))
+            built_in.append(
+                (
+                    x509.BasicConstraints(ca=is_ca, path_length=path_length),
+                    True,
+                )
+            )
+            if issuer_public_key is not None:
+                built_in.append(
+                    self._authority_key_identifier_extension(issuer_public_key)
+                )
+            built_in.extend(
+                self._ca_extensions()
+                if is_ca
+                else self._leaf_cert_extensions()
+            )
+            if sans:
+                built_in.append(self._subject_alt_name_extension(*sans))
         for extension, critical in _dedupe_extensions(
             [*built_in, *extensions]
         ):
@@ -586,7 +675,9 @@ class _CertBuilder:
     def sign(
         self,
         private_key: CertificateIssuerPrivateKeyTypes,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
     ) -> x509.Certificate:
         return self.builder.sign(
             private_key=private_key,
@@ -639,8 +730,11 @@ class Cert:
         serial_number: int | None = None,
         parent: Cert | None = None,
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        builtin_extensions: bool = True,
         path_length: int = 0,
         is_ca: bool = False,
     ) -> None:
@@ -662,6 +756,11 @@ class Cert:
             extensions: Extra `(extension, critical)` pairs. One that
                 collides with a built-in extension replaces it
                 wholesale.
+            builtin_extensions: Add cnert's own extensions. When
+                false, only the supplied pairs are added, subject
+                alternative names included. The result is not a valid
+                certificate for real use, which is the point: it is
+                how a bare certificate is built.
             path_length: Path length
             is_ca: if CA
 
@@ -685,20 +784,23 @@ class Cert:
             self.private_key = private_key
 
         self.sans = sans
-        self.subject_attrs = subject_attrs
-        self.issuer_attrs = issuer_attrs
+        self.subject_attrs = _check_name_attrs(subject_attrs, "subject_attrs")
+        self.issuer_attrs = _check_name_attrs(issuer_attrs, "issuer_attrs")
         self.parent = parent
         self.not_valid_before = not_valid_before
         self.not_valid_after = not_valid_after
         self.serial_number = serial_number
         self.path_length = path_length
         self.is_ca = is_ca
-        self._build_certificate(signature_hash, extensions)
+        self._build_certificate(signature_hash, extensions, builtin_extensions)
 
     def _build_certificate(
         self,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        builtin_extensions: bool = True,
     ) -> None:
         cert_builder = _CertBuilder()
         cert_builder.build(
@@ -715,6 +817,7 @@ class Cert:
             ),
             path_length=None if not self.is_ca else self.path_length,
             extensions=extensions,
+            builtin_extensions=builtin_extensions,
         )
         self.certificate = cert_builder.sign(
             self.parent.private_key if self.parent else self.private_key,
@@ -894,6 +997,9 @@ class CSR:
             or to `None` for an Edwards key, which takes no hash.
         extensions: Extra `(extension, critical)` pairs. One that
             collides with a built-in extension replaces it wholesale.
+        builtin_extensions: Add cnert's own extensions. When false,
+            only the supplied pairs are added, subject alternative
+            names included.
 
     """
 
@@ -908,8 +1014,11 @@ class CSR:
         *sans: str,
         subject_attrs: NameAttrs | None = None,
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        builtin_extensions: bool = True,
     ) -> None:
         self.sans = sans
 
@@ -918,7 +1027,7 @@ class CSR:
                 subject_attrs = NameAttrs(COMMON_NAME=sans[0])
             else:
                 subject_attrs = NameAttrs(COMMON_NAME="example.com")
-        self.subject_attrs = subject_attrs
+        self.subject_attrs = _check_name_attrs(subject_attrs, "subject_attrs")
 
         if private_key is None:
             self.private_key = build_private_key()
@@ -930,7 +1039,9 @@ class CSR:
                 subject_attrs.x509_name()
             )
         )
-        self.CSR = self._gen_csr(signature_hash, extensions)
+        self.CSR = self._gen_csr(
+            signature_hash, extensions, builtin_extensions
+        )
 
     def _subject_alt_name_extension(
         self,
@@ -944,11 +1055,14 @@ class CSR:
 
     def _gen_csr(
         self,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        builtin_extensions: bool = True,
     ) -> x509.CertificateSigningRequest:
         built_in: list[tuple[x509.ExtensionType, bool]] = []
-        if self.sans:
+        if builtin_extensions and self.sans:
             built_in.append(self._subject_alt_name_extension())
         for extension, critical in _dedupe_extensions(
             [*built_in, *extensions]
@@ -1025,6 +1139,10 @@ class CA:
         private_key: Private key for the CA's own certificate;
             generated when omitted. Reusing one key across a chain is
             allowed, and is how a key-reuse fixture is built.
+        builtin_extensions: Add cnert's own extensions to the CA's
+            own certificate. When false, only the supplied pairs are
+            added. An authority without basic constraints is not a
+            usable authority, which is deliberate.
     """
 
     intermediate_num: int
@@ -1041,9 +1159,12 @@ class CA:
         serial_number: int | None = None,
         parent: CA | None = None,
         intermediate_num: int = 0,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
+        builtin_extensions: bool = True,
     ) -> None:
         self.intermediate_num = intermediate_num
         self.parent = parent
@@ -1065,6 +1186,7 @@ class CA:
             signature_hash=signature_hash,
             extensions=extensions,
             private_key=private_key,
+            builtin_extensions=builtin_extensions,
             is_ca=True,
         )
 
@@ -1102,9 +1224,12 @@ class CA:
         not_valid_before: datetime.datetime | None = None,
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
+        builtin_extensions: bool = True,
     ) -> CA:
         """
         Issues an intermediate CA.
@@ -1120,6 +1245,8 @@ class CA:
             private_key: Private key for the intermediate; generated
                 when omitted. The intermediate is still signed by this
                 CA's key.
+            builtin_extensions: Add cnert's own extensions. When
+                false, only the supplied pairs are added.
 
         Raises:
             ValueError: If this CA's path length is 0.
@@ -1145,6 +1272,7 @@ class CA:
             signature_hash=signature_hash,
             extensions=extensions,
             private_key=private_key,
+            builtin_extensions=builtin_extensions,
         )
 
     def issue_cert(
@@ -1155,9 +1283,12 @@ class CA:
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         csr: CSR | None = None,
-        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        signature_hash: (
+            hashes.HashAlgorithm | str | _UnsetType | None
+        ) = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
+        builtin_extensions: bool = True,
     ) -> Cert:
         """
         Issues a certificate
@@ -1184,6 +1315,11 @@ class CA:
                 only: the signature always comes from this CA's key.
                 A `csr` carries its own key, so the two are mutually
                 exclusive.
+            builtin_extensions: Add cnert's own extensions. When
+                false, only the supplied pairs are added, subject
+                alternative names included. The result is not a valid
+                certificate for real use, which is the point: it is
+                how a bare certificate is built.
 
         Raises:
             ValueError: If both `private_key` and `csr` are given.
@@ -1218,6 +1354,7 @@ class CA:
             private_key=private_key,
             signature_hash=signature_hash,
             extensions=extensions,
+            builtin_extensions=builtin_extensions,
         )
 
 

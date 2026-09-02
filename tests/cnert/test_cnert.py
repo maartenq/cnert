@@ -1354,3 +1354,211 @@ def test_one_key_reused_across_a_chain():
     assert (
         cert.public_key.public_numbers() == ca.cert.public_key.public_numbers()
     )
+
+
+def test_SIGNATURE_HASHES():
+    assert cnert.SIGNATURE_HASHES == (
+        "sha224",
+        "sha256",
+        "sha384",
+        "sha512",
+        "sha3_224",
+        "sha3_256",
+        "sha3_384",
+        "sha3_512",
+    )
+    assert "sha1" not in cnert.SIGNATURE_HASHES
+    assert "md5" not in cnert.SIGNATURE_HASHES
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("sha256", "sha256"),
+        ("sha384", "sha384"),
+        ("sha512", "sha512"),
+        ("sha3_256", "sha3-256"),
+    ],
+)
+def test_cert_signature_hash_by_name(name, expected):
+    cert = cnert.CA().issue_cert(signature_hash=name)
+    assert cert.certificate.signature_hash_algorithm.name == expected
+
+
+def test_CSR_signature_hash_by_name():
+    csr = cnert.CSR(signature_hash="sha512")
+    assert csr.CSR.signature_hash_algorithm.name == "sha512"
+
+
+@pytest.mark.parametrize("name", ["sha1", "md5"])
+def test_signature_hash_by_name_refused(name):
+    with pytest.raises(ValueError, match=f"{name} cannot sign"):
+        cnert.CA().issue_cert(signature_hash=name)
+
+
+def test_signature_hash_unknown_name():
+    with pytest.raises(ValueError, match="unknown signature hash"):
+        cnert.CA().issue_cert(signature_hash="sha256x")
+
+
+def test_signature_hash_unknown_name_lists_usable_names():
+    with pytest.raises(ValueError, match="sha224, sha256, sha384"):
+        cnert.CA().issue_cert(signature_hash="nope")
+
+
+@pytest.mark.parametrize(
+    "value,type_name",
+    [(512, "int"), (object(), "object"), (b"sha256", "bytes")],
+)
+def test_signature_hash_wrong_type(value, type_name):
+    with pytest.raises(TypeError, match=f"not {type_name}"):
+        cnert.CA().issue_cert(signature_hash=value)
+
+
+def test_bare_cert_has_no_extensions():
+    cert = cnert.CA().issue_cert("example.com", builtin_extensions=False)
+    assert len(cert.certificate.extensions) == 0
+
+
+def test_bare_cert_reports_absent_extension_rather_than_raising():
+    cert = cnert.CA().issue_cert("example.com", builtin_extensions=False)
+    with pytest.raises(x509.ExtensionNotFound):
+        cert.certificate.extensions.get_extension_for_class(
+            x509.SubjectAlternativeName
+        )
+
+
+def test_bare_cert_suppresses_sans_but_keeps_common_name():
+    cert = cnert.CA().issue_cert("example.com", builtin_extensions=False)
+    assert extension_oids(cert.certificate) == []
+    assert cert.subject_attrs.COMMON_NAME == "example.com"
+
+
+def test_bare_cert_composes_with_the_extensions_hatch():
+    cert = cnert.CA().issue_cert(
+        "example.com",
+        extensions=[(must_staple(), False)],
+        builtin_extensions=False,
+    )
+    assert extension_oids(cert.certificate) == [must_staple().oid]
+
+
+def test_bare_CA_has_no_basic_constraints():
+    ca = cnert.CA(builtin_extensions=False)
+    assert extension_oids(ca.cert.certificate) == []
+
+
+def test_bare_intermediate_has_no_extensions():
+    intermediate = cnert.CA().issue_intermediate(builtin_extensions=False)
+    assert extension_oids(intermediate.cert.certificate) == []
+
+
+def test_bare_CSR_has_no_extensions():
+    csr = cnert.CSR("example.com", builtin_extensions=False)
+    assert len(csr.CSR.extensions) == 0
+
+
+def test_builtin_extensions_default_matches_explicit_true():
+    ca = cnert.CA()
+    default = ca.issue_cert("example.com")
+    explicit = ca.issue_cert("example.com", builtin_extensions=True)
+    assert extension_oids(default.certificate) == extension_oids(
+        explicit.certificate
+    )
+
+
+def ou_values(name):
+    return [
+        attribute.value
+        for attribute in name.get_attributes_for_oid(
+            NameOID.ORGANIZATIONAL_UNIT_NAME
+        )
+    ]
+
+
+def test_name_attrs_multi_valued():
+    name_attrs = cnert.NameAttrs(ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"])
+    assert ou_values(name_attrs.x509_name()) == ["OU-A", "OU-B"]
+
+
+def test_name_attrs_multi_valued_keeps_caller_order():
+    name_attrs = cnert.NameAttrs(ORGANIZATIONAL_UNIT_NAME=["OU-B", "OU-A"])
+    assert ou_values(name_attrs.x509_name()) == ["OU-B", "OU-A"]
+
+
+def test_name_attrs_mixed_single_and_multiple():
+    name_attrs = cnert.NameAttrs(
+        ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"],
+        COMMON_NAME="example.com",
+    )
+    values = [
+        (attribute.oid, attribute.value)
+        for attribute in name_attrs.x509_name()
+    ]
+    assert values == [
+        (NameOID.COMMON_NAME, "example.com"),
+        (NameOID.ORGANIZATIONAL_UNIT_NAME, "OU-A"),
+        (NameOID.ORGANIZATIONAL_UNIT_NAME, "OU-B"),
+    ]
+
+
+def test_name_attrs_single_element_sequence():
+    name_attrs = cnert.NameAttrs(COMMON_NAME=["only"])
+    assert [attribute.value for attribute in name_attrs.x509_name()] == [
+        "only"
+    ]
+
+
+def test_name_attrs_multi_valued_reads_back_as_tuple():
+    name_attrs = cnert.NameAttrs(ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"])
+    assert name_attrs.ORGANIZATIONAL_UNIT_NAME == ("OU-A", "OU-B")
+
+
+def test_name_attrs_multi_valued_is_hashable():
+    a = cnert.NameAttrs(ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"])
+    b = cnert.NameAttrs(ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"])
+    assert a == b
+    assert hash(a) == hash(b)
+    assert len({a, b}) == 1
+
+
+def test_name_attrs_multi_valued_repr():
+    name_attrs = cnert.NameAttrs(
+        COMMON_NAME="example.com",
+        ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"],
+    )
+    assert repr(name_attrs) == (
+        'NameAttrs(COMMON_NAME="example.com", '
+        'ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"])'
+    )
+
+
+def test_cert_with_multi_valued_subject():
+    subject_attrs = cnert.NameAttrs(
+        COMMON_NAME="example.com",
+        ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"],
+    )
+    cert = cnert.CA().issue_cert(subject_attrs=subject_attrs)
+    assert ou_values(cert.certificate.subject) == ["OU-A", "OU-B"]
+
+
+@pytest.mark.parametrize(
+    "value,type_name",
+    [(x509.Name([]), "Name"), ("CN=example.com", "str"), (42, "int")],
+)
+def test_cert_subject_attrs_wrong_type(value, type_name):
+    with pytest.raises(TypeError, match=f"not {type_name}"):
+        cnert.CA().issue_cert(subject_attrs=value)
+
+
+def test_cert_issuer_attrs_wrong_type():
+    with pytest.raises(TypeError, match="issuer_attrs takes a NameAttrs"):
+        cnert.Cert(
+            subject_attrs=cnert.NameAttrs(COMMON_NAME="example.com"),
+            issuer_attrs=x509.Name([]),
+        )
+
+
+def test_CSR_subject_attrs_wrong_type():
+    with pytest.raises(TypeError, match="not str"):
+        cnert.CSR(subject_attrs="CN=example.com")

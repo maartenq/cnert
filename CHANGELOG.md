@@ -38,6 +38,26 @@ into a dated version section.
   key only; the signature still comes from the issuing CA. Passing
   both `csr` and `private_key` raises `ValueError`, since a CSR
   already carries a key.
+- `signature_hash` also takes a name: `"sha512"` as well as
+  `hashes.SHA512()`, matching how `build_private_key` already takes
+  `algorithm="ed25519"`. The usable names are `cnert.SIGNATURE_HASHES`.
+  A name that is no known hash raises `ValueError`; anything that is
+  neither a name, a hash object nor `None` raises `TypeError`.
+- `Cert`, `CSR`, `CA`, `CA.issue_intermediate()` and
+  `CA.issue_cert()` take `builtin_extensions`. Set it false and only
+  caller-supplied extensions are added, subject alternative names
+  included, which is how a bare certificate is built for a parser test
+  that must prove an absent extension reads as absent.
+- A `NameAttrs` value may be a sequence:
+  `ORGANIZATIONAL_UNIT_NAME=["OU-A", "OU-B"]` emits one attribute per
+  value in the order given, so a distinguished name can repeat an
+  attribute type. Python forbids a repeated keyword, so this was
+  unreachable. A multi-valued attribute reads back as a tuple, and
+  `repr()` renders it as the list a caller would type. The
+  plus-joined single-RDN form is still out of reach.
+- `subject_attrs` and `issuer_attrs` raise `TypeError` naming the
+  type passed when given anything other than a `NameAttrs`, instead
+  of an `AttributeError` from inside certificate construction.
 
 ### Changed
 
@@ -53,12 +73,15 @@ into a dated version section.
   clean. `Freezer` no longer mutates a shared `__slots__` list (it had
   no slotting effect and grew per instantiation).
 - Minimum dependencies raised to `cryptography>=50.0.1` and
-  `idna>=3.19`, ahead of widening key-type support.
+  `idna>=3.19`, ahead of widening key-type support. Consumers pinned
+  below those will have to move first.
 - Key annotations widen from `rsa.RSAPrivateKey` and
   `rsa.RSAPublicKey` to `cryptography`'s issuer key unions, so
   non-RSA keys type-check. Runtime behaviour is unchanged, but code
   that reads `Cert.private_key` or `Cert.public_key` and passes it
-  somewhere RSA-specific may see a new type-checker error.
+  somewhere RSA-specific may see a new type-checker error. The
+  `NameAttrs` attribute annotations widen the same way, to
+  `str | tuple[str, ...]`.
 - `private_key_pem_PKCS1` raises `ValueError` for a non-RSA key,
   naming `private_key_pem_PKCS8` as the alternative, instead of
   failing inside `cryptography`.
