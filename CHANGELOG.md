@@ -67,7 +67,7 @@ into a dated version section.
 - `NameAttrs` is now hashable (it is frozen), and comparing it to a
   non-`NameAttrs` object returns `NotImplemented` instead of raising
   `AttributeError`.
-- Better annotations throughout: typed `NameAttrs(**kwargs: str)`,
+- Better annotations throughout: typed `NameAttrs` keyword arguments,
   class-level attribute annotations on `Cert`/`CSR`/`CA`, `@override`
   markers, and a `[tool.basedpyright]` section so editor LSPs check
   clean. `Freezer` no longer mutates a shared `__slots__` list (it had
@@ -79,9 +79,14 @@ into a dated version section.
   `rsa.RSAPublicKey` to `cryptography`'s issuer key unions, so
   non-RSA keys type-check. Runtime behaviour is unchanged, but code
   that reads `Cert.private_key` or `Cert.public_key` and passes it
-  somewhere RSA-specific may see a new type-checker error. The
-  `NameAttrs` attribute annotations widen the same way, to
-  `str | tuple[str, ...]`.
+  somewhere RSA-specific may see a new type-checker error.
+- **Reading an attribute off a `NameAttrs` is now typed
+  `str | tuple[str, ...]`**, because an attribute type can repeat.
+  Runtime behaviour is unchanged for single-valued attributes, but a
+  type checker will reject code that treats the result as a `str`.
+  `int(subject_attrs.SERIAL_NUMBER)` is the shape that breaks. Read
+  the value from the mapping you built instead of round-tripping it
+  through the object, or narrow with `isinstance`.
 - `private_key_pem_PKCS1` raises `ValueError` for a non-RSA key,
   naming `private_key_pem_PKCS8` as the alternative, instead of
   failing inside `cryptography`.
