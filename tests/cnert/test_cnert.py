@@ -10,7 +10,12 @@ import pytest
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import (
+    ec,
+    ed448,
+    ed25519,
+    rsa,
+)
 from cryptography.x509 import ObjectIdentifier, extensions, general_name
 from cryptography.x509.oid import NameOID
 
@@ -918,3 +923,230 @@ def test_name_attrs_is_hashable():
 
 def test_cert_deprecated_alias():
     assert cnert._Cert is cnert.Cert
+
+
+@pytest.mark.parametrize(
+    "algorithm,key_type",
+    [
+        ("rsa", rsa.RSAPrivateKey),
+        ("ed25519", ed25519.Ed25519PrivateKey),
+        ("ed448", ed448.Ed448PrivateKey),
+        ("secp256r1", ec.EllipticCurvePrivateKey),
+        ("secp384r1", ec.EllipticCurvePrivateKey),
+        ("secp521r1", ec.EllipticCurvePrivateKey),
+    ],
+)
+def test_build_private_key_algorithm(algorithm, key_type):
+    assert isinstance(cnert.build_private_key(algorithm=algorithm), key_type)
+
+
+@pytest.mark.parametrize(
+    "algorithm,curve_name",
+    [
+        ("secp256r1", "secp256r1"),
+        ("secp384r1", "secp384r1"),
+        ("secp521r1", "secp521r1"),
+    ],
+)
+def test_build_private_key_curve(algorithm, curve_name):
+    key = cnert.build_private_key(algorithm=algorithm)
+    assert key.curve.name == curve_name
+
+
+def test_build_private_key_default_is_rsa_2048():
+    key = cnert.build_private_key()
+    assert isinstance(key, rsa.RSAPrivateKey)
+    assert key.key_size == 2048
+    assert key.public_key().public_numbers().e == 65537
+
+
+def test_build_private_key_rsa_sizing():
+    key = cnert.build_private_key(key_size=1024, public_exponent=3)
+    assert key.key_size == 1024
+    assert key.public_key().public_numbers().e == 3
+
+
+def test_build_private_key_unknown_algorithm():
+    with pytest.raises(ValueError, match="unknown algorithm 'secp256k1'"):
+        cnert.build_private_key(algorithm="secp256k1")
+
+
+def test_build_private_key_unknown_algorithm_lists_names():
+    with pytest.raises(ValueError, match="rsa, ed25519, ed448, secp256r1"):
+        cnert.build_private_key(algorithm="nope")
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"key_size": 1024}, {"public_exponent": 3}],
+)
+def test_build_private_key_rsa_only_arguments(kwargs):
+    with pytest.raises(ValueError, match="RSA-only"):
+        cnert.build_private_key(algorithm="ed25519", **kwargs)
+
+
+def test_KEY_ALGORITHMS():
+    assert cnert.KEY_ALGORITHMS == (
+        "rsa",
+        "ed25519",
+        "ed448",
+        "secp256r1",
+        "secp384r1",
+        "secp521r1",
+    )
+
+
+@pytest.mark.parametrize("algorithm", ["rsa", "secp256r1"])
+def test_signature_hash_for_defaults_to_sha256(algorithm):
+    key = cnert.build_private_key(algorithm=algorithm)
+    assert isinstance(cnert._signature_hash_for(key), hashes.SHA256)
+
+
+@pytest.mark.parametrize("algorithm", ["ed25519", "ed448"])
+def test_signature_hash_for_edwards_defaults_to_none(algorithm):
+    key = cnert.build_private_key(algorithm=algorithm)
+    assert cnert._signature_hash_for(key) is None
+    assert cnert._signature_hash_for(key, None) is None
+
+
+@pytest.mark.parametrize("algorithm", ["rsa", "secp384r1"])
+def test_signature_hash_for_explicit_hash(algorithm):
+    key = cnert.build_private_key(algorithm=algorithm)
+    given = hashes.SHA512()
+    assert cnert._signature_hash_for(key, given) is given
+
+
+@pytest.mark.parametrize("algorithm", ["ed25519", "ed448"])
+def test_signature_hash_for_edwards_rejects_hash(algorithm):
+    key = cnert.build_private_key(algorithm=algorithm)
+    with pytest.raises(ValueError, match="take no signature hash"):
+        cnert._signature_hash_for(key, hashes.SHA256())
+
+
+@pytest.mark.parametrize("algorithm", ["rsa", "secp256r1"])
+def test_signature_hash_for_requires_hash(algorithm):
+    key = cnert.build_private_key(algorithm=algorithm)
+    with pytest.raises(ValueError, match="requires a signature hash"):
+        cnert._signature_hash_for(key, None)
+
+
+@pytest.mark.parametrize(
+    "hash_algorithm,name",
+    [
+        (hashes.SHA1(), "sha1"),  # noqa: S303
+        (hashes.MD5(), "md5"),  # noqa: S303
+    ],
+)
+def test_signature_hash_for_rejects_unusable_hash(hash_algorithm, name):
+    key = cnert.build_private_key()
+    with pytest.raises(ValueError, match=f"{name} cannot sign"):
+        cnert._signature_hash_for(key, hash_algorithm)
+
+
+def test_cert_default_signature_hash_is_sha256():
+    cert = cnert.CA().issue_cert()
+    assert isinstance(cert.certificate.signature_hash_algorithm, hashes.SHA256)
+
+
+def test_cert_explicit_signature_hash():
+    cert = cnert.CA().issue_cert(signature_hash=hashes.SHA384())
+    assert isinstance(cert.certificate.signature_hash_algorithm, hashes.SHA384)
+
+
+def test_cert_signature_hash_sha1_is_refused():
+    ca = cnert.CA()
+    with pytest.raises(ValueError, match="sha1 cannot sign"):
+        ca.issue_cert(signature_hash=hashes.SHA1())  # noqa: S303
+
+
+def test_CSR_explicit_signature_hash():
+    csr = cnert.CSR(signature_hash=hashes.SHA512())
+    assert isinstance(csr.CSR.signature_hash_algorithm, hashes.SHA512)
+
+
+def test_CSR_signature_hash_md5_is_refused():
+    with pytest.raises(ValueError, match="md5 cannot sign"):
+        cnert.CSR(signature_hash=hashes.MD5())  # noqa: S303
+
+
+def test_CSR_with_edwards_key():
+    key = cnert.build_private_key(algorithm="ed25519")
+    csr = cnert.CSR(private_key=key)
+    assert csr.CSR.signature_hash_algorithm is None
+    assert isinstance(csr.public_key, ed25519.Ed25519PublicKey)
+
+
+def issuing_cert(algorithm):
+    key = cnert.build_private_key(algorithm=algorithm)
+    return cnert.Cert(
+        subject_attrs=cnert.NameAttrs(ORGANIZATION_NAME="Root CA"),
+        issuer_attrs=cnert.NameAttrs(ORGANIZATION_NAME="Root CA"),
+        private_key=key,
+        path_length=9,
+        is_ca=True,
+    )
+
+
+def test_edwards_issuer_signs_without_hash():
+    assert issuing_cert("ed25519").certificate.signature_hash_algorithm is (
+        None
+    )
+
+
+def test_edwards_issuer_signs_rsa_leaf_without_hash():
+    parent = issuing_cert("ed448")
+    leaf = cnert.Cert(
+        subject_attrs=cnert.NameAttrs(COMMON_NAME="example.com"),
+        issuer_attrs=parent.subject_attrs,
+        parent=parent,
+    )
+    assert leaf.certificate.signature_hash_algorithm is None
+    assert isinstance(leaf.public_key, rsa.RSAPublicKey)
+
+
+def test_rsa_issuer_signs_edwards_leaf_with_sha256():
+    parent = issuing_cert("rsa")
+    leaf = cnert.Cert(
+        subject_attrs=cnert.NameAttrs(COMMON_NAME="example.com"),
+        issuer_attrs=parent.subject_attrs,
+        parent=parent,
+        private_key=cnert.build_private_key(algorithm="ed25519"),
+    )
+    assert isinstance(leaf.certificate.signature_hash_algorithm, hashes.SHA256)
+    assert isinstance(leaf.public_key, ed25519.Ed25519PublicKey)
+
+
+def test_ec_issuer_signs_verifiable_leaf():
+    parent = issuing_cert("secp384r1")
+    leaf = cnert.Cert(
+        subject_attrs=cnert.NameAttrs(COMMON_NAME="example.com"),
+        issuer_attrs=parent.subject_attrs,
+        parent=parent,
+    )
+    leaf.certificate.verify_directly_issued_by(parent.certificate)
+
+
+def edwards_leaf():
+    return cnert.Cert(
+        subject_attrs=cnert.NameAttrs(COMMON_NAME="example.com"),
+        issuer_attrs=cnert.NameAttrs(COMMON_NAME="example.com"),
+        private_key=cnert.build_private_key(algorithm="ed25519"),
+    )
+
+
+def test_cert_private_key_pem_PKCS8_for_edwards_key():
+    assert edwards_leaf().private_key_pem_PKCS8.startswith(
+        b"-----BEGIN PRIVATE KEY-----\n"
+    )
+
+
+def test_cert_private_key_pem_PKCS1_is_rsa_only():
+    cert = edwards_leaf()
+    with pytest.raises(ValueError, match="PKCS#1 is RSA-only"):
+        _ = cert.private_key_pem_PKCS1
+
+
+def test_CSR_private_key_pem_PKCS1_is_rsa_only():
+    csr = cnert.CSR(private_key=cnert.build_private_key(algorithm="ed448"))
+    with pytest.raises(ValueError, match="PKCS#1 is RSA-only"):
+        _ = csr.private_key_pem_PKCS1

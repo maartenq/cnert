@@ -3,14 +3,25 @@
 from __future__ import annotations  # lazy annotations; drop when floor >= 3.14
 
 import datetime
+from collections.abc import Callable
+from functools import partial
 from importlib.metadata import version
 from ipaddress import ip_address, ip_network
-from typing import cast, override
+from typing import Any, cast, override
 
 import idna
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import (
+    ec,
+    ed448,
+    ed25519,
+    rsa,
+)
+from cryptography.hazmat.primitives.asymmetric.types import (
+    CertificateIssuerPrivateKeyTypes,
+    CertificateIssuerPublicKeyTypes,
+)
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 """
@@ -29,20 +40,165 @@ __license__ = "MIT or Apache License, Version 2.0"
 __copyright__ = "Copyright (c) 2023  Maarten"
 
 
+# Non-RSA key algorithms, by the name `build_private_key` takes. RSA is
+# handled separately: it is the default and the only one that takes
+# key_size and public_exponent.
+_KEY_BUILDERS: dict[str, Callable[[], CertificateIssuerPrivateKeyTypes]] = {
+    "ed25519": ed25519.Ed25519PrivateKey.generate,
+    "ed448": ed448.Ed448PrivateKey.generate,
+    "secp256r1": partial(ec.generate_private_key, ec.SECP256R1()),
+    "secp384r1": partial(ec.generate_private_key, ec.SECP384R1()),
+    "secp521r1": partial(ec.generate_private_key, ec.SECP521R1()),
+}
+KEY_ALGORITHMS: tuple[str, ...] = ("rsa", *_KEY_BUILDERS)
+
+# Edwards keys sign without a separate hash algorithm; every other key
+# type requires one.
+_EDWARDS_KEYS = (ed25519.Ed25519PrivateKey, ed448.Ed448PrivateKey)
+
+# The hashes usable for an X.509 signature. `cryptography` types this
+# set as a module-private union, so cnert keeps its own copy: SHA-1 and
+# MD5 are refused outright, and there is no way to sign with them.
+_ALLOWED_HASHES = (
+    hashes.SHA224,
+    hashes.SHA256,
+    hashes.SHA384,
+    hashes.SHA512,
+    hashes.SHA3_224,
+    hashes.SHA3_256,
+    hashes.SHA3_384,
+    hashes.SHA3_512,
+)
+
+
+class _UnsetType:
+    """
+    Sentinel type: "no signature hash given".
+
+    `None` is a meaningful signature hash (Edwards keys require it), so
+    it cannot double as the default.
+    """
+
+    @override
+    def __repr__(self) -> str:
+        return "<unset>"
+
+
+_UNSET = _UnsetType()
+
+
 def build_private_key(
-    key_size: int = 2048,
-    public_exponent: int = 65537,
-) -> rsa.RSAPrivateKey:
+    key_size: int | None = None,
+    public_exponent: int | None = None,
+    algorithm: str = "rsa",
+) -> CertificateIssuerPrivateKeyTypes:
     """
     Creates a private key.
 
+    Examples:
+        >>> build_private_key()  # 2048-bit RSA
+        >>> build_private_key(algorithm="ed25519")
+        >>> build_private_key(key_size=1024)
+
     Parameters:
-        key_size: Key size
-        public_exponent: public exponenent
+        key_size: RSA key size, default 2048. RSA only.
+        public_exponent: RSA public exponent, default 65537. RSA only.
+        algorithm: One of `cnert.KEY_ALGORITHMS`: `rsa` (default),
+            `ed25519`, `ed448`, or an EC curve name such as
+            `secp256r1`.
+
+    Raises:
+        ValueError: If `algorithm` is unknown, or if `key_size` or
+            `public_exponent` is given for a non-RSA algorithm.
+
+    Returns:
+        A private key of the requested algorithm.
     """
-    return rsa.generate_private_key(
-        public_exponent=public_exponent,
-        key_size=key_size,
+    if algorithm == "rsa":
+        return rsa.generate_private_key(
+            public_exponent=(
+                65537 if public_exponent is None else public_exponent
+            ),
+            key_size=2048 if key_size is None else key_size,
+        )
+    if key_size is not None or public_exponent is not None:
+        raise ValueError(
+            "key_size and public_exponent are RSA-only, but algorithm "
+            f"is {algorithm!r}"
+        )
+    try:
+        build = _KEY_BUILDERS[algorithm]
+    except KeyError:
+        raise ValueError(
+            f"unknown algorithm {algorithm!r}; "
+            f"pick one of {', '.join(KEY_ALGORITHMS)}"
+        ) from None
+    return build()
+
+
+def _signature_hash_for(
+    private_key: CertificateIssuerPrivateKeyTypes,
+    signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+) -> hashes.HashAlgorithm | None:
+    """
+    Resolve and validate the signature hash for a signing key.
+
+    Parameters:
+        private_key: The key that will do the signing.
+        signature_hash: The requested hash, `None` for Edwards keys, or
+            unset to take the default for the key type.
+
+    Raises:
+        ValueError: If a hash is given for an Edwards key, withheld
+            for any other key type, or unusable for signatures.
+
+    Returns:
+        The hash to sign with, or `None` for an Edwards key.
+    """
+    is_edwards = isinstance(private_key, _EDWARDS_KEYS)
+    if isinstance(signature_hash, _UnsetType):
+        return None if is_edwards else hashes.SHA256()
+    if is_edwards and signature_hash is not None:
+        raise ValueError(
+            "Ed25519 and Ed448 keys take no signature hash; pass None"
+        )
+    if signature_hash is None:
+        if is_edwards:
+            return None
+        raise ValueError(
+            f"an {type(private_key).__name__} requires a signature "
+            "hash; only Ed25519 and Ed448 sign without one"
+        )
+    # Not TRY004/TypeError: SHA-1 is a perfectly good HashAlgorithm,
+    # it just cannot sign a certificate. That is a value, not a type.
+    if not isinstance(signature_hash, _ALLOWED_HASHES):
+        raise ValueError(  # noqa: TRY004
+            f"{signature_hash.name} cannot sign an X.509 certificate; "
+            "use a SHA-2 or SHA-3 hash"
+        )
+    return signature_hash
+
+
+def _private_key_pem_PKCS1(
+    private_key: CertificateIssuerPrivateKeyTypes,
+) -> bytes:
+    """
+    Serialize an RSA private key as PKCS#1 PEM.
+
+    Raises:
+        ValueError: If the key is not an RSA key.
+    """
+    # Not TRY004/TypeError: the caller passed no type here, it read a
+    # property that does not apply to the key it already has.
+    if not isinstance(private_key, rsa.RSAPrivateKey):
+        raise ValueError(  # noqa: TRY004
+            "PKCS#1 is RSA-only; use private_key_pem_PKCS8 for a "
+            f"{type(private_key).__name__} key"
+        )
+    return private_key.private_bytes(
+        serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption(),
     )
 
 
@@ -325,7 +481,7 @@ class _CertBuilder:
 
     def _add_authority_key_identifier_extension(
         self,
-        issuer_public_key: rsa.RSAPublicKey,
+        issuer_public_key: CertificateIssuerPublicKeyTypes,
     ) -> None:
         """
         Add Authority Key Identifier extension.
@@ -349,8 +505,8 @@ class _CertBuilder:
         not_valid_before: datetime.datetime,
         not_valid_after: datetime.datetime,
         is_ca: bool,
-        public_key: rsa.RSAPublicKey,
-        issuer_public_key: rsa.RSAPublicKey | None = None,
+        public_key: CertificateIssuerPublicKeyTypes,
+        issuer_public_key: CertificateIssuerPublicKeyTypes | None = None,
         path_length: int | None = None,
     ) -> None:
         """
@@ -396,10 +552,16 @@ class _CertBuilder:
         if sans:
             self._add_subject_alt_name_extension(*sans)
 
-    def sign(self, private_key: rsa.RSAPrivateKey) -> x509.Certificate:
+    def sign(
+        self,
+        private_key: CertificateIssuerPrivateKeyTypes,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+    ) -> x509.Certificate:
         return self.builder.sign(
             private_key=private_key,
-            algorithm=hashes.SHA256(),
+            algorithm=cast(
+                "Any", _signature_hash_for(private_key, signature_hash)
+            ),
         )
 
 
@@ -432,7 +594,7 @@ class Cert:
     serial_number: int
     path_length: int
     is_ca: bool
-    private_key: rsa.RSAPrivateKey
+    private_key: CertificateIssuerPrivateKeyTypes
     certificate: x509.Certificate
     pem: bytes
 
@@ -445,7 +607,8 @@ class Cert:
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         parent: Cert | None = None,
-        private_key: rsa.RSAPrivateKey | None = None,
+        private_key: CertificateIssuerPrivateKeyTypes | None = None,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
         path_length: int = 0,
         is_ca: bool = False,
     ) -> None:
@@ -460,9 +623,17 @@ class Cert:
             not_valid_after: CA not valid after date
             serial_number: Serial number
             parent: Certificate of CA.
-            private_key: RSA private key
+            private_key: Private key; generated when omitted.
+            signature_hash: Signature hash algorithm. Defaults to
+                SHA-256, or to `None` when the signing key is an
+                Edwards key, which takes no hash.
             path_length: Path length
             is_ca: if CA
+
+        Raises:
+            ValueError: If `signature_hash` does not suit the signing
+                key. See
+                [`cnert.build_private_key`][cnert.build_private_key].
         """
         if not_valid_before is None:
             not_valid_before = datetime.datetime.now(datetime.UTC)
@@ -487,9 +658,12 @@ class Cert:
         self.serial_number = serial_number
         self.path_length = path_length
         self.is_ca = is_ca
-        self._build_certificate()
+        self._build_certificate(signature_hash)
 
-    def _build_certificate(self) -> None:
+    def _build_certificate(
+        self,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+    ) -> None:
         cert_builder = _CertBuilder()
         cert_builder.build(
             sans=self.sans,
@@ -507,6 +681,7 @@ class Cert:
         )
         self.certificate = cert_builder.sign(
             self.parent.private_key if self.parent else self.private_key,
+            signature_hash,
         )
         self.pem = self.certificate.public_bytes(serialization.Encoding.PEM)
 
@@ -520,14 +695,14 @@ class Cert:
             ...
 
 
+        Raises:
+            ValueError: If the key is not an RSA key. PKCS#1 is
+                RSA-only.
+
         Returns:
             PEM encoded serialized key in TraditionalOpenSSL format.
         """
-        return self.private_key.private_bytes(
-            serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
+        return _private_key_pem_PKCS1(self.private_key)
 
     @property
     def private_key_pem_PKCS8(self) -> bytes:
@@ -548,16 +723,16 @@ class Cert:
         )
 
     @property
-    def public_key(self) -> rsa.RSAPublicKey:
+    def public_key(self) -> CertificateIssuerPublicKeyTypes:
         """
         Examples:
             >>> cert = cnert.CA().issue_cert()
-            >>> cert.private_key
-            <cryptography.hazmat.backends.openssl.rsa._RSAPrivateKey object
-            at 0x1014e4e10>
+            >>> cert.public_key
+            <cryptography.hazmat.bindings._rust.openssl.rsa.RSAPublicKey
+            object at 0x1014e4e10>
 
         Returns:
-            An RSA private key.
+            The public key matching this certificate's private key.
         """
         return self.private_key.public_key()
 
@@ -677,13 +852,15 @@ class CSR:
     Parameters:
         sans: Subject Alternative Names as positional arguments
         subject_attrs: Subject Name Attributes
-        private_key: RSA private key
+        private_key: Private key; generated when omitted.
+        signature_hash: Signature hash algorithm. Defaults to SHA-256,
+            or to `None` for an Edwards key, which takes no hash.
 
     """
 
     sans: tuple[str, ...]
     subject_attrs: NameAttrs
-    private_key: rsa.RSAPrivateKey
+    private_key: CertificateIssuerPrivateKeyTypes
     CSR: x509.CertificateSigningRequest
     pem: bytes
 
@@ -691,7 +868,8 @@ class CSR:
         self,
         *sans: str,
         subject_attrs: NameAttrs | None = None,
-        private_key: rsa.RSAPrivateKey | None = None,
+        private_key: CertificateIssuerPrivateKeyTypes | None = None,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
     ) -> None:
         self.sans = sans
 
@@ -712,7 +890,7 @@ class CSR:
                 subject_attrs.x509_name()
             )
         )
-        self.CSR = self._gen_csr()
+        self.CSR = self._gen_csr(signature_hash)
 
     def _add_subject_alt_name_extension(self) -> None:
         self._csr_builder = self._csr_builder.add_extension(
@@ -722,23 +900,33 @@ class CSR:
             critical=False,
         )
 
-    def _gen_csr(self) -> x509.CertificateSigningRequest:
+    def _gen_csr(
+        self,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+    ) -> x509.CertificateSigningRequest:
         if self.sans:
             self._add_subject_alt_name_extension()
         csr = self._csr_builder.sign(
             private_key=self.private_key,
-            algorithm=hashes.SHA256(),
+            algorithm=cast(
+                "Any",
+                _signature_hash_for(self.private_key, signature_hash),
+            ),
         )
         self.pem = csr.public_bytes(serialization.Encoding.PEM)
         return csr
 
     @property
     def private_key_pem_PKCS1(self) -> bytes:
-        return self.private_key.private_bytes(
-            serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
+        """
+        Raises:
+            ValueError: If the key is not an RSA key. PKCS#1 is
+                RSA-only.
+
+        Returns:
+            PEM encoded serialized key in TraditionalOpenSSL format.
+        """
+        return _private_key_pem_PKCS1(self.private_key)
 
     @property
     def private_key_pem_PKCS8(self) -> bytes:
@@ -749,7 +937,7 @@ class CSR:
         )
 
     @property
-    def public_key(self) -> rsa.RSAPublicKey:
+    def public_key(self) -> CertificateIssuerPublicKeyTypes:
         return self.private_key.public_key()
 
     @override
@@ -778,6 +966,9 @@ class CA:
         not_valid_after: CA not valid after date.
         parent: Parent of CA.
         intermediate_num: Number of intermediates.
+        signature_hash: Signature hash algorithm for the CA's own
+            certificate. Defaults to SHA-256, or to `None` for an
+            Edwards key, which takes no hash.
     """
 
     intermediate_num: int
@@ -794,6 +985,7 @@ class CA:
         serial_number: int | None = None,
         parent: CA | None = None,
         intermediate_num: int = 0,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
     ) -> None:
         self.intermediate_num = intermediate_num
         self.parent = parent
@@ -812,6 +1004,7 @@ class CA:
             not_valid_after=not_valid_after,
             serial_number=serial_number,
             parent=(self.parent.cert if self.parent is not None else None),
+            signature_hash=signature_hash,
             is_ca=True,
         )
 
@@ -849,6 +1042,7 @@ class CA:
         not_valid_before: datetime.datetime | None = None,
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
     ) -> CA:
         if self.cert.path_length == 0:
             raise ValueError("Can't create intermediate CA: path length is 0")
@@ -865,6 +1059,7 @@ class CA:
             serial_number=serial_number,
             parent=self,
             intermediate_num=intermediate_num,
+            signature_hash=signature_hash,
         )
 
     def issue_cert(
@@ -875,6 +1070,7 @@ class CA:
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         csr: CSR | None = None,
+        signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
     ) -> Cert:
         """
         Issues a certificate
@@ -890,6 +1086,9 @@ class CA:
             not_valid_before: Certificate not valid before date.
             not_valid_after: Certificate not valid after date.
             csr: A CSR object.
+            signature_hash: Signature hash algorithm. Defaults to
+                SHA-256, or to `None` when this CA's key is an Edwards
+                key, which takes no hash.
 
         Returns:
             A Cert object.
@@ -915,6 +1114,7 @@ class CA:
             serial_number=serial_number,
             parent=self.cert,
             private_key=private_key,
+            signature_hash=signature_hash,
         )
 
 

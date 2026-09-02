@@ -9,6 +9,22 @@ into a dated version section.
 
 ## [Unreleased]
 
+### Added
+
+- `build_private_key()` takes an `algorithm` argument: `rsa` (the
+  default), `ed25519`, `ed448`, or one of the curve names
+  `secp256r1`, `secp384r1`, `secp521r1`. The full tuple is exported as
+  `cnert.KEY_ALGORITHMS`. `key_size` and `public_exponent` stay
+  RSA-only and now raise for other algorithms instead of being
+  ignored.
+- `Cert`, `CSR`, `CA` and `CA.issue_cert()` take a `signature_hash`
+  argument. It defaults to SHA-256, and to `None` for an Edwards key,
+  which signs without a separate hash. Passing a hash with an Edwards
+  key, `None` with any other key type, or SHA-1 or MD5 with anything
+  raises `ValueError`. SHA-1 and MD5 cannot sign an X.509 certificate
+  at all; cnert says so rather than letting the underlying
+  `UnsupportedAlgorithm` through.
+
 ### Changed
 
 - `_Cert` is renamed to `Cert`: it was always returned by the public
@@ -24,6 +40,14 @@ into a dated version section.
   no slotting effect and grew per instantiation).
 - Minimum dependencies raised to `cryptography>=50.0.1` and
   `idna>=3.19`, ahead of widening key-type support.
+- Key annotations widen from `rsa.RSAPrivateKey` and
+  `rsa.RSAPublicKey` to `cryptography`'s issuer key unions, so
+  non-RSA keys type-check. Runtime behaviour is unchanged, but code
+  that reads `Cert.private_key` or `Cert.public_key` and passes it
+  somewhere RSA-specific may see a new type-checker error.
+- `private_key_pem_PKCS1` raises `ValueError` for a non-RSA key,
+  naming `private_key_pem_PKCS8` as the alternative, instead of
+  failing inside `cryptography`.
 
 ### Fixed
 
