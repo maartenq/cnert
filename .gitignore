@@ -231,3 +231,9 @@ tags
 [._]*.un~
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,vim,python,direnv
+
+### Claude Code ###
+# .claude/settings.json and the OpenSpec commands/skills are shareable,
+# so don't ignore the whole dir.
+.claude/settings.local.json
+.claude/*.tmp.*

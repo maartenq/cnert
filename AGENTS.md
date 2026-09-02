@@ -14,6 +14,18 @@ CAs, and certificates for testing. All source lives in one module:
   it. The version source of truth is `[project].version` in
   `pyproject.toml`.
 
+## Spec-driven development (OpenSpec)
+
+Feature work goes through [OpenSpec](https://openspec.dev/):
+`openspec/specs/` describes what IS built, `openspec/changes/` what
+SHOULD change, and project context plus artifact rules live in
+`openspec/config.yaml`. There is no spec baseline yet; the first
+proposals build it up.
+
+Cycle: `/opsx:new` (or `propose`) -> `apply` -> `verify` -> `archive`.
+Skip it only for chores that change no behaviour (dependency bumps,
+formatting, release commits).
+
 ## Common tasks
 
 Run via [`task`](https://taskfile.dev) (`taskfile.yaml`):
