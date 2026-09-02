@@ -62,6 +62,27 @@ itself replaces cnert's version wholesale, keeping its position. That
 makes the argument an override as well as an addition, and it is the
 only way to change key usage or basic constraints.
 
+### Supplying keys
+
+`CA()`, `CA.issue_intermediate()` and `CA.issue_cert()` take a
+`private_key`, which is how an undersized key or an unusual public
+exponent becomes reachable:
+
+```python
+import cnert
+
+ca = cnert.CA(private_key=cnert.build_private_key(key_size=1024))
+cert = ca.issue_cert(
+    "example.com", private_key=cnert.build_private_key(public_exponent=3)
+)
+```
+
+A supplied key is the certificate's subject key only. The signature
+always comes from the issuing CA's key. A `csr` already carries a key,
+so passing both a `csr` and a `private_key` raises `ValueError`.
+Passing the same key at several levels is allowed, and is how a
+key-reuse fixture is built.
+
 ### Function idna_encode
 
 ::: cnert.idna_encode

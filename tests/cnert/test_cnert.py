@@ -1265,3 +1265,92 @@ def test_CSR_without_extensions_is_unchanged():
     assert [extension.oid for extension in csr.CSR.extensions] == [
         x509.SubjectAlternativeName.oid
     ]
+
+
+def test_CA_private_key():
+    key = cnert.build_private_key(key_size=1024)
+    ca = cnert.CA(private_key=key)
+    assert ca.cert.private_key is key
+    assert ca.cert.public_key.key_size == 1024
+
+
+def test_CA_without_private_key_generates_one():
+    assert cnert.CA().cert.public_key.key_size == 2048
+
+
+def test_CA_issue_intermediate_private_key():
+    ca = cnert.CA()
+    key = cnert.build_private_key(algorithm="secp256r1")
+    intermediate = ca.issue_intermediate(private_key=key)
+    assert intermediate.cert.private_key is key
+    intermediate.cert.certificate.verify_directly_issued_by(
+        ca.cert.certificate
+    )
+
+
+def test_CA_issue_cert_private_key():
+    ca = cnert.CA()
+    key = cnert.build_private_key(key_size=1024)
+    cert = ca.issue_cert("example.com", private_key=key)
+    assert cert.private_key is key
+    assert cert.public_key.key_size == 1024
+    cert.certificate.verify_directly_issued_by(ca.cert.certificate)
+
+
+def test_CA_issue_cert_private_key_is_not_the_signing_key():
+    ca = cnert.CA()
+    cert = ca.issue_cert(private_key=cnert.build_private_key(key_size=1024))
+    assert cert.certificate.signature_hash_algorithm is not None
+    assert (
+        cert.certificate.public_key().public_numbers()
+        != ca.cert.public_key.public_numbers()
+    )
+
+
+def test_CA_issue_cert_without_private_key_generates_a_fresh_one():
+    ca = cnert.CA()
+    first = ca.issue_cert("example.com")
+    second = ca.issue_cert("example.com")
+    assert (
+        first.public_key.public_numbers() != second.public_key.public_numbers()
+    )
+
+
+def test_CA_issue_cert_private_key_and_csr_are_exclusive():
+    ca = cnert.CA()
+    with pytest.raises(ValueError, match="not both"):
+        ca.issue_cert(
+            csr=cnert.CSR("example.com"),
+            private_key=cnert.build_private_key(),
+        )
+
+
+def test_CA_issue_cert_twice_from_one_csr_is_a_renewal():
+    ca = cnert.CA()
+    csr = cnert.CSR("example.com")
+    first = ca.issue_cert(csr=csr)
+    second = ca.issue_cert(csr=csr)
+    assert (
+        first.public_key.public_numbers() == second.public_key.public_numbers()
+    )
+    assert first.serial_number != second.serial_number
+
+
+def test_chain_with_supplied_keys_throughout():
+    ca = cnert.CA(private_key=cnert.build_private_key())
+    intermediate = ca.issue_intermediate(private_key=cnert.build_private_key())
+    cert = intermediate.issue_cert(
+        "example.com", private_key=cnert.build_private_key()
+    )
+    assert cert.issuer_attrs == intermediate.cert.subject_attrs
+    assert intermediate.cert.issuer_attrs == ca.cert.subject_attrs
+    assert intermediate.cert.path_length == ca.cert.path_length - 1
+
+
+def test_one_key_reused_across_a_chain():
+    key = cnert.build_private_key()
+    ca = cnert.CA(private_key=key)
+    cert = ca.issue_cert("example.com", private_key=key)
+    assert (
+        cert.public_key.public_numbers() == ca.cert.public_key.public_numbers()
+    )

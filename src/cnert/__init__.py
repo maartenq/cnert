@@ -1022,6 +1022,9 @@ class CA:
         extensions: Extra `(extension, critical)` pairs for the CA's
             own certificate. One that collides with a built-in
             extension replaces it wholesale.
+        private_key: Private key for the CA's own certificate;
+            generated when omitted. Reusing one key across a chain is
+            allowed, and is how a key-reuse fixture is built.
     """
 
     intermediate_num: int
@@ -1040,6 +1043,7 @@ class CA:
         intermediate_num: int = 0,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        private_key: CertificateIssuerPrivateKeyTypes | None = None,
     ) -> None:
         self.intermediate_num = intermediate_num
         self.parent = parent
@@ -1060,6 +1064,7 @@ class CA:
             parent=(self.parent.cert if self.parent is not None else None),
             signature_hash=signature_hash,
             extensions=extensions,
+            private_key=private_key,
             is_ca=True,
         )
 
@@ -1099,7 +1104,29 @@ class CA:
         serial_number: int | None = None,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        private_key: CertificateIssuerPrivateKeyTypes | None = None,
     ) -> CA:
+        """
+        Issues an intermediate CA.
+
+        Parameters:
+            subject_attrs: Subject Name Attributes.
+            not_valid_before: Intermediate not valid before date.
+            not_valid_after: Intermediate not valid after date.
+            serial_number: Serial number.
+            signature_hash: Signature hash algorithm for the
+                intermediate's certificate.
+            extensions: Extra `(extension, critical)` pairs.
+            private_key: Private key for the intermediate; generated
+                when omitted. The intermediate is still signed by this
+                CA's key.
+
+        Raises:
+            ValueError: If this CA's path length is 0.
+
+        Returns:
+            A CA object.
+        """
         if self.cert.path_length == 0:
             raise ValueError("Can't create intermediate CA: path length is 0")
         intermediate_num = self.intermediate_num + 1
@@ -1117,6 +1144,7 @@ class CA:
             intermediate_num=intermediate_num,
             signature_hash=signature_hash,
             extensions=extensions,
+            private_key=private_key,
         )
 
     def issue_cert(
@@ -1129,6 +1157,7 @@ class CA:
         csr: CSR | None = None,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
         extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
+        private_key: CertificateIssuerPrivateKeyTypes | None = None,
     ) -> Cert:
         """
         Issues a certificate
@@ -1150,17 +1179,29 @@ class CA:
             extensions: Extra `(extension, critical)` pairs. One that
                 collides with a built-in extension replaces it
                 wholesale.
+            private_key: Private key for the certificate; generated
+                when omitted. It is the certificate's subject key
+                only: the signature always comes from this CA's key.
+                A `csr` carries its own key, so the two are mutually
+                exclusive.
+
+        Raises:
+            ValueError: If both `private_key` and `csr` are given.
 
         Returns:
             A Cert object.
 
         """
+        if csr is not None and private_key is not None:
+            raise ValueError(
+                "pass either private_key or csr, not both: a CSR "
+                "already carries a key"
+            )
         if csr:
             sans = csr.sans
             subject_attrs = csr.subject_attrs
             private_key = csr.private_key
         else:
-            private_key = None
             if subject_attrs is None:
                 if sans:
                     subject_attrs = NameAttrs(COMMON_NAME=sans[0])

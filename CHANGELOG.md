@@ -30,6 +30,14 @@ into a dated version section.
   policies or name constraints. A supplied extension that collides
   with a built-in one replaces it, so this is also the way to override
   key usage or basic constraints.
+- `CA()`, `CA.issue_intermediate()` and `CA.issue_cert()` take a
+  `private_key`. `build_private_key()`'s `key_size` and
+  `public_exponent` were previously unreachable from the authority,
+  so an undersized key or an `e=3` certificate could not be built
+  without bypassing the chain wiring. A supplied key is the subject
+  key only; the signature still comes from the issuing CA. Passing
+  both `csr` and `private_key` raises `ValueError`, since a CSR
+  already carries a key.
 
 ### Changed
 
