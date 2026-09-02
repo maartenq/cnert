@@ -24,6 +24,12 @@ into a dated version section.
   raises `ValueError`. SHA-1 and MD5 cannot sign an X.509 certificate
   at all; cnert says so rather than letting the underlying
   `UnsupportedAlgorithm` through.
+- `Cert`, `CSR`, `CA` and `CA.issue_cert()` take an `extensions`
+  sequence of `(extension, critical)` pairs, for extensions cnert does
+  not model, such as TLS Feature (OCSP must-staple), certificate
+  policies or name constraints. A supplied extension that collides
+  with a built-in one replaces it, so this is also the way to override
+  key usage or basic constraints.
 
 ### Changed
 

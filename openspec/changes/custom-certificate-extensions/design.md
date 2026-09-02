@@ -46,10 +46,10 @@ new helper added later would silently miss it.
 
 ### Last one wins, and callers come last
 
-Deduplication keeps the last occurrence. Since caller pairs are
-appended after the built-ins, a caller always wins. Among caller
-pairs, a later entry wins over an earlier one, which is the ordinary
-reading of a sequence.
+Deduplication keeps the last value for an identifier at the position
+of the first. Since caller pairs are appended after the built-ins, a
+caller always wins. Among caller pairs, a later entry wins over an
+earlier one, which is the ordinary reading of a sequence.
 
 ### The pair is a plain tuple
 
@@ -71,10 +71,11 @@ this change deliberately avoids.
   Overriding is the point, so cnert cannot validate its way out. →
   The docstring says an override replaces cnert's version wholesale,
   and the spec makes it explicit.
-- **Extension ordering in the certificate changes.** Built-ins keep
-  their relative order, but an overridden extension moves to the
-  position of the caller's entry. Nothing in X.509 depends on
-  extension order, and no cnert accessor exposes it. → Accepted.
+- **Extension ordering in the certificate changes.** Deduplication
+  keeps the position of the first pair for an identifier, so an
+  override stays where the built-in was and only added extensions land
+  at the end. Nothing in X.509 depends on extension order, and no
+  cnert accessor exposes it. → Accepted.
 - **The hatch invites cnert never to model anything again.** →
   Extensions that show up repeatedly in tests still deserve a proper
   keyword later; the hatch is for the long tail.

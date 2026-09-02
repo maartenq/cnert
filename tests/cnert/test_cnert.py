@@ -675,79 +675,73 @@ def test__CertBuilder__key_usage_ca():
     assert key_usage.key_encipherment is True
 
 
-def test__CertBuilder__add_ca_extention():
-    cert_builder = cnert._CertBuilder()
-    assert len(cert_builder.builder._extensions) == 0
-    cert_builder._add_ca_extension()
-    assert len(cert_builder.builder._extensions) == 1
-    key_usage = cert_builder.builder._extensions[0]
-    assert type(key_usage.value) is extensions.KeyUsage
+def test__CertBuilder_ca_extensions():
+    pairs = cnert._CertBuilder()._ca_extensions()
+    assert len(pairs) == 1
+    key_usage, critical = pairs[0]
+    assert critical is True
+    assert type(key_usage) is extensions.KeyUsage
     assert key_usage.oid.dotted_string == "2.5.29.15"
-    assert key_usage.value.content_commitment is False
-    assert key_usage.value.crl_sign is True
-    assert key_usage.value.data_encipherment is False
-    assert key_usage.value.digital_signature is True
-    assert key_usage.value.key_agreement is False
-    assert key_usage.value.key_cert_sign is True
-    assert key_usage.value.key_encipherment is True
+    assert key_usage.content_commitment is False
+    assert key_usage.crl_sign is True
+    assert key_usage.data_encipherment is False
+    assert key_usage.digital_signature is True
+    assert key_usage.key_agreement is False
+    assert key_usage.key_cert_sign is True
+    assert key_usage.key_encipherment is True
 
 
-def test__CertBuilder__add_leaf_cert_extensions_key_usage():
-    cert_builder = cnert._CertBuilder()
-    assert len(cert_builder.builder._extensions) == 0
-    cert_builder._add_leaf_cert_extension()
-    assert len(cert_builder.builder._extensions) == 2
-    key_usage = cert_builder.builder._extensions[0]
-    assert type(key_usage.value) is extensions.KeyUsage
+def test__CertBuilder_leaf_cert_extensions_key_usage():
+    pairs = cnert._CertBuilder()._leaf_cert_extensions()
+    assert len(pairs) == 2
+    key_usage, critical = pairs[0]
+    assert critical is True
+    assert type(key_usage) is extensions.KeyUsage
     assert key_usage.oid.dotted_string == "2.5.29.15"
-    assert key_usage.value.content_commitment is False
-    assert key_usage.value.crl_sign is False
-    assert key_usage.value.data_encipherment is False
-    assert key_usage.value.digital_signature is True
-    assert key_usage.value.key_agreement is False
-    assert key_usage.value.key_cert_sign is False
-    assert key_usage.value.key_encipherment is True
+    assert key_usage.content_commitment is False
+    assert key_usage.crl_sign is False
+    assert key_usage.data_encipherment is False
+    assert key_usage.digital_signature is True
+    assert key_usage.key_agreement is False
+    assert key_usage.key_cert_sign is False
+    assert key_usage.key_encipherment is True
 
 
-def test__CertBuilder__add_leaf_cert_extensions_extended_key_usage():
-    cert_builder = cnert._CertBuilder()
-    assert len(cert_builder.builder._extensions) == 0
-    cert_builder._add_leaf_cert_extension()
-    assert len(cert_builder.builder._extensions) == 2
-    extension = cert_builder.builder._extensions[1]
-    assert type(extension.value) is extensions.ExtendedKeyUsage
-    assert extension.oid.dotted_string == "2.5.29.37"
-    assert list(extension.value) == [
+def test__CertBuilder_leaf_cert_extensions_extended_key_usage():
+    extended_key_usage, critical = (
+        cnert._CertBuilder()._leaf_cert_extensions()[1]
+    )
+    assert critical is True
+    assert type(extended_key_usage) is extensions.ExtendedKeyUsage
+    assert extended_key_usage.oid.dotted_string == "2.5.29.37"
+    assert list(extended_key_usage) == [
         ObjectIdentifier("1.3.6.1.5.5.7.3.2"),
         ObjectIdentifier("1.3.6.1.5.5.7.3.1"),
         ObjectIdentifier("1.3.6.1.5.5.7.3.3"),
     ]
 
 
-def test__CertBuilder__add_authority_key_identifier_extension(public_key):
-    cert_builder = cnert._CertBuilder()
-    assert len(cert_builder.builder._extensions) == 0
-    cert_builder._add_authority_key_identifier_extension(public_key)
-    assert len(cert_builder.builder._extensions) == 1
-    extension = cert_builder.builder._extensions[0]
-    assert type(extension.value) is extensions.AuthorityKeyIdentifier
+def test__CertBuilder_authority_key_identifier_extension(public_key):
+    extension, critical = (
+        cnert._CertBuilder()._authority_key_identifier_extension(public_key)
+    )
+    assert critical is False
+    assert type(extension) is extensions.AuthorityKeyIdentifier
     assert extension.oid.dotted_string == "2.5.29.35"
 
 
-def test__CertBuilder__add_subject_alt_name_extension():
-    cert_builder = cnert._CertBuilder()
+def test__CertBuilder_subject_alt_name_extension():
     sans = (
         "host1.example.com",
         "host2.example.com",
     )
-    cert_builder._add_subject_alt_name_extension(*sans)
-    assert len(cert_builder.builder._extensions) == 1
-    sub_alt_name = cert_builder.builder._extensions[0]
+    sub_alt_name, critical = cnert._CertBuilder()._subject_alt_name_extension(
+        *sans
+    )
+    assert critical is True
     assert sub_alt_name.oid.dotted_string == "2.5.29.17"
-    assert type(sub_alt_name.value) is extensions.SubjectAlternativeName
-    assert list(sub_alt_name.value) == [
-        general_name.DNSName(san) for san in sans
-    ]
+    assert type(sub_alt_name) is extensions.SubjectAlternativeName
+    assert list(sub_alt_name) == [general_name.DNSName(san) for san in sans]
 
 
 def test__CertBuilder_build(public_key):
@@ -1150,3 +1144,124 @@ def test_CSR_private_key_pem_PKCS1_is_rsa_only():
     csr = cnert.CSR(private_key=cnert.build_private_key(algorithm="ed448"))
     with pytest.raises(ValueError, match="PKCS#1 is RSA-only"):
         _ = csr.private_key_pem_PKCS1
+
+
+def must_staple():
+    return x509.TLSFeature([x509.TLSFeatureType.status_request])
+
+
+def extension_oids(certificate):
+    return [extension.oid for extension in certificate.extensions]
+
+
+def test_dedupe_extensions_keeps_last_per_oid():
+    first = x509.BasicConstraints(ca=False, path_length=None)
+    second = x509.BasicConstraints(ca=True, path_length=3)
+    pairs = cnert._dedupe_extensions([(first, True), (second, False)])
+    assert len(pairs) == 1
+    assert pairs[0] == (second, False)
+
+
+def test_dedupe_extensions_keeps_position_of_first():
+    san = x509.SubjectAlternativeName([general_name.DNSName("a.example")])
+    first = x509.BasicConstraints(ca=False, path_length=None)
+    second = x509.BasicConstraints(ca=True, path_length=3)
+    pairs = cnert._dedupe_extensions(
+        [(first, True), (san, False), (second, True)]
+    )
+    assert [extension.oid for extension, _ in pairs] == [
+        first.oid,
+        san.oid,
+    ]
+
+
+def test_cert_extensions_adds_unmodelled_extension():
+    cert = cnert.CA().issue_cert(
+        "example.com", extensions=[(must_staple(), False)]
+    )
+    extension = cert.certificate.extensions.get_extension_for_class(
+        x509.TLSFeature
+    )
+    assert extension.critical is False
+    assert list(extension.value) == [x509.TLSFeatureType.status_request]
+
+
+def test_cert_extensions_keeps_built_in_set():
+    ca = cnert.CA()
+    plain = ca.issue_cert("example.com")
+    extended = ca.issue_cert(
+        "example.com", extensions=[(must_staple(), False)]
+    )
+    assert set(extension_oids(plain.certificate)) < set(
+        extension_oids(extended.certificate)
+    )
+
+
+def test_cert_several_extensions():
+    policy = x509.CertificatePolicies(
+        [x509.PolicyInformation(ObjectIdentifier("1.2.3.4"), None)]
+    )
+    cert = cnert.CA().issue_cert(
+        extensions=[(must_staple(), False), (policy, False)]
+    )
+    oids = extension_oids(cert.certificate)
+    assert must_staple().oid in oids
+    assert policy.oid in oids
+
+
+def test_cert_extension_overrides_key_usage():
+    key_usage = x509.KeyUsage(
+        content_commitment=False,
+        crl_sign=False,
+        data_encipherment=True,
+        decipher_only=False,
+        digital_signature=False,
+        encipher_only=False,
+        key_agreement=False,
+        key_cert_sign=False,
+        key_encipherment=False,
+    )
+    cert = cnert.CA().issue_cert(extensions=[(key_usage, True)])
+    found = [
+        extension
+        for extension in cert.certificate.extensions
+        if extension.oid == key_usage.oid
+    ]
+    assert len(found) == 1
+    assert found[0].value.data_encipherment is True
+    assert found[0].value.digital_signature is False
+
+
+def test_CA_extension_overrides_basic_constraints():
+    basic_constraints = x509.BasicConstraints(ca=True, path_length=2)
+    ca = cnert.CA(extensions=[(basic_constraints, True)])
+    found = [
+        extension
+        for extension in ca.cert.certificate.extensions
+        if extension.oid == basic_constraints.oid
+    ]
+    assert len(found) == 1
+    assert found[0].value.path_length == 2
+
+
+def test_cert_no_extensions_argument_matches_empty_sequence():
+    ca = cnert.CA()
+    without = ca.issue_cert("example.com")
+    empty = ca.issue_cert("example.com", extensions=[])
+    assert extension_oids(without.certificate) == extension_oids(
+        empty.certificate
+    )
+
+
+def test_CSR_extensions():
+    csr = cnert.CSR("example.com", extensions=[(must_staple(), False)])
+    extension = csr.CSR.extensions.get_extension_for_class(x509.TLSFeature)
+    assert extension.critical is False
+    assert list(extension.value) == [x509.TLSFeatureType.status_request]
+
+
+def test_CSR_without_extensions_is_unchanged():
+    csr = cnert.CSR("example.com")
+    assert [extension.oid for extension in csr.CSR.extensions] == [
+        x509.SubjectAlternativeName.oid
+    ]

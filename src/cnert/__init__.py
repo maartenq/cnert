@@ -3,7 +3,7 @@
 from __future__ import annotations  # lazy annotations; drop when floor >= 3.14
 
 import datetime
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from functools import partial
 from importlib.metadata import version
 from ipaddress import ip_address, ip_network
@@ -177,6 +177,24 @@ def _signature_hash_for(
             "use a SHA-2 or SHA-3 hash"
         )
     return signature_hash
+
+
+def _dedupe_extensions(
+    extensions: Sequence[tuple[x509.ExtensionType, bool]],
+) -> list[tuple[x509.ExtensionType, bool]]:
+    """
+    Reduce extension pairs to one per object identifier.
+
+    X.509 forbids two extensions with the same object identifier, and
+    `cryptography`'s builders raise on the second one. The last pair for
+    an identifier wins, keeping the position of the first, so a
+    caller-supplied extension replaces the built-in one it collides
+    with.
+    """
+    by_oid: dict[x509.ObjectIdentifier, tuple[x509.ExtensionType, bool]] = {}
+    for extension, critical in extensions:
+        by_oid[extension.oid] = (extension, critical)
+    return list(by_oid.values())
 
 
 def _private_key_pem_PKCS1(
@@ -434,66 +452,73 @@ class _CertBuilder:
             key_encipherment=key_encipherment,
         )
 
-    def _add_ca_extension(self) -> None:
+    def _ca_extensions(self) -> list[tuple[x509.ExtensionType, bool]]:
         """
-        Add CA extension.
+        CA key usage.
         """
-        self.builder = self.builder.add_extension(
-            self._key_usage(
-                digital_signature=True,
-                key_cert_sign=True,
-                crl_sign=True,
+        return [
+            (
+                self._key_usage(
+                    digital_signature=True,
+                    key_cert_sign=True,
+                    crl_sign=True,
+                ),
+                True,
             ),
-            critical=True,
-        )
+        ]
 
-    def _add_leaf_cert_extension(self) -> None:
+    def _leaf_cert_extensions(
+        self,
+    ) -> list[tuple[x509.ExtensionType, bool]]:
         """
-        Add leaf extension.
+        Leaf key usage and extended key usage.
         """
-        self.builder = self.builder.add_extension(
-            self._key_usage(),
-            critical=True,
-        ).add_extension(
-            x509.ExtendedKeyUsage(
-                [
-                    ExtendedKeyUsageOID.CLIENT_AUTH,
-                    ExtendedKeyUsageOID.SERVER_AUTH,
-                    ExtendedKeyUsageOID.CODE_SIGNING,
-                ]
+        return [
+            (self._key_usage(), True),
+            (
+                x509.ExtendedKeyUsage(
+                    [
+                        ExtendedKeyUsageOID.CLIENT_AUTH,
+                        ExtendedKeyUsageOID.SERVER_AUTH,
+                        ExtendedKeyUsageOID.CODE_SIGNING,
+                    ]
+                ),
+                True,
             ),
-            critical=True,
-        )
+        ]
 
-    def _add_subject_alt_name_extension(self, *sans: str) -> None:
+    @staticmethod
+    def _subject_alt_name_extension(
+        *sans: str,
+    ) -> tuple[x509.ExtensionType, bool]:
         """
-        Add Subject Alternative Name extension.
+        Subject Alternative Name extension.
 
         Parameters:
             sans: Subject Alternative Names as positional arguments.
         """
-        self.builder = self.builder.add_extension(
+        return (
             x509.SubjectAlternativeName(
                 [identity_string_to_x509(san) for san in sans]
             ),
-            critical=True,
+            True,
         )
 
-    def _add_authority_key_identifier_extension(
-        self,
+    @staticmethod
+    def _authority_key_identifier_extension(
         issuer_public_key: CertificateIssuerPublicKeyTypes,
-    ) -> None:
+    ) -> tuple[x509.ExtensionType, bool]:
         """
-        Add Authority Key Identifier extension.
+        Authority Key Identifier extension.
 
         Parameters:
             issuer_public_key: Issuer Public key
         """
-        self.builder = self.builder.add_extension(
+        return (
             x509.AuthorityKeyIdentifier.from_issuer_public_key(
                 issuer_public_key
             ),
-            critical=False,
+            False,
         )
 
     def build(
@@ -508,6 +533,7 @@ class _CertBuilder:
         public_key: CertificateIssuerPublicKeyTypes,
         issuer_public_key: CertificateIssuerPublicKeyTypes | None = None,
         path_length: int | None = None,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> None:
         """
         Does the Certificate building.
@@ -523,6 +549,8 @@ class _CertBuilder:
             public_key: Public key for the certificate.
             issuer_public_key: Issuer public key.
             path_length: Max path length.
+            extensions: Extra `(extension, critical)` pairs. One that
+                collides with a built-in extension replaces it.
         """
         self.builder = (
             self.builder.subject_name(subject_attrs_X509_name)
@@ -531,26 +559,29 @@ class _CertBuilder:
             .serial_number(serial_number)
             .not_valid_before(not_valid_before)
             .not_valid_after(not_valid_after)
-            .add_extension(
-                x509.SubjectKeyIdentifier.from_public_key(public_key),
-                critical=False,
-            )
-            .add_extension(
-                x509.BasicConstraints(
-                    ca=is_ca,
-                    path_length=path_length,
-                ),
-                critical=True,
-            )
         )
+        built_in: list[tuple[x509.ExtensionType, bool]] = [
+            (x509.SubjectKeyIdentifier.from_public_key(public_key), False),
+            (
+                x509.BasicConstraints(ca=is_ca, path_length=path_length),
+                True,
+            ),
+        ]
         if issuer_public_key is not None:
-            self._add_authority_key_identifier_extension(issuer_public_key)
-        if is_ca:
-            self._add_ca_extension()
-        else:
-            self._add_leaf_cert_extension()
+            built_in.append(
+                self._authority_key_identifier_extension(issuer_public_key)
+            )
+        built_in.extend(
+            self._ca_extensions() if is_ca else self._leaf_cert_extensions()
+        )
         if sans:
-            self._add_subject_alt_name_extension(*sans)
+            built_in.append(self._subject_alt_name_extension(*sans))
+        for extension, critical in _dedupe_extensions(
+            [*built_in, *extensions]
+        ):
+            self.builder = self.builder.add_extension(
+                extension, critical=critical
+            )
 
     def sign(
         self,
@@ -609,6 +640,7 @@ class Cert:
         parent: Cert | None = None,
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
         path_length: int = 0,
         is_ca: bool = False,
     ) -> None:
@@ -627,6 +659,9 @@ class Cert:
             signature_hash: Signature hash algorithm. Defaults to
                 SHA-256, or to `None` when the signing key is an
                 Edwards key, which takes no hash.
+            extensions: Extra `(extension, critical)` pairs. One that
+                collides with a built-in extension replaces it
+                wholesale.
             path_length: Path length
             is_ca: if CA
 
@@ -658,11 +693,12 @@ class Cert:
         self.serial_number = serial_number
         self.path_length = path_length
         self.is_ca = is_ca
-        self._build_certificate(signature_hash)
+        self._build_certificate(signature_hash, extensions)
 
     def _build_certificate(
         self,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> None:
         cert_builder = _CertBuilder()
         cert_builder.build(
@@ -678,6 +714,7 @@ class Cert:
                 self.parent.public_key if self.parent else None
             ),
             path_length=None if not self.is_ca else self.path_length,
+            extensions=extensions,
         )
         self.certificate = cert_builder.sign(
             self.parent.private_key if self.parent else self.private_key,
@@ -855,6 +892,8 @@ class CSR:
         private_key: Private key; generated when omitted.
         signature_hash: Signature hash algorithm. Defaults to SHA-256,
             or to `None` for an Edwards key, which takes no hash.
+        extensions: Extra `(extension, critical)` pairs. One that
+            collides with a built-in extension replaces it wholesale.
 
     """
 
@@ -870,6 +909,7 @@ class CSR:
         subject_attrs: NameAttrs | None = None,
         private_key: CertificateIssuerPrivateKeyTypes | None = None,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> None:
         self.sans = sans
 
@@ -890,22 +930,32 @@ class CSR:
                 subject_attrs.x509_name()
             )
         )
-        self.CSR = self._gen_csr(signature_hash)
+        self.CSR = self._gen_csr(signature_hash, extensions)
 
-    def _add_subject_alt_name_extension(self) -> None:
-        self._csr_builder = self._csr_builder.add_extension(
+    def _subject_alt_name_extension(
+        self,
+    ) -> tuple[x509.ExtensionType, bool]:
+        return (
             x509.SubjectAlternativeName(
                 [identity_string_to_x509(san) for san in self.sans]
             ),
-            critical=False,
+            False,
         )
 
     def _gen_csr(
         self,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> x509.CertificateSigningRequest:
+        built_in: list[tuple[x509.ExtensionType, bool]] = []
         if self.sans:
-            self._add_subject_alt_name_extension()
+            built_in.append(self._subject_alt_name_extension())
+        for extension, critical in _dedupe_extensions(
+            [*built_in, *extensions]
+        ):
+            self._csr_builder = self._csr_builder.add_extension(
+                extension, critical=critical
+            )
         csr = self._csr_builder.sign(
             private_key=self.private_key,
             algorithm=cast(
@@ -969,6 +1019,9 @@ class CA:
         signature_hash: Signature hash algorithm for the CA's own
             certificate. Defaults to SHA-256, or to `None` for an
             Edwards key, which takes no hash.
+        extensions: Extra `(extension, critical)` pairs for the CA's
+            own certificate. One that collides with a built-in
+            extension replaces it wholesale.
     """
 
     intermediate_num: int
@@ -986,6 +1039,7 @@ class CA:
         parent: CA | None = None,
         intermediate_num: int = 0,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> None:
         self.intermediate_num = intermediate_num
         self.parent = parent
@@ -1005,6 +1059,7 @@ class CA:
             serial_number=serial_number,
             parent=(self.parent.cert if self.parent is not None else None),
             signature_hash=signature_hash,
+            extensions=extensions,
             is_ca=True,
         )
 
@@ -1043,6 +1098,7 @@ class CA:
         not_valid_after: datetime.datetime | None = None,
         serial_number: int | None = None,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> CA:
         if self.cert.path_length == 0:
             raise ValueError("Can't create intermediate CA: path length is 0")
@@ -1060,6 +1116,7 @@ class CA:
             parent=self,
             intermediate_num=intermediate_num,
             signature_hash=signature_hash,
+            extensions=extensions,
         )
 
     def issue_cert(
@@ -1071,6 +1128,7 @@ class CA:
         serial_number: int | None = None,
         csr: CSR | None = None,
         signature_hash: hashes.HashAlgorithm | _UnsetType | None = _UNSET,
+        extensions: Sequence[tuple[x509.ExtensionType, bool]] = (),
     ) -> Cert:
         """
         Issues a certificate
@@ -1089,6 +1147,9 @@ class CA:
             signature_hash: Signature hash algorithm. Defaults to
                 SHA-256, or to `None` when this CA's key is an Edwards
                 key, which takes no hash.
+            extensions: Extra `(extension, critical)` pairs. One that
+                collides with a built-in extension replaces it
+                wholesale.
 
         Returns:
             A Cert object.
@@ -1115,6 +1176,7 @@ class CA:
             parent=self.cert,
             private_key=private_key,
             signature_hash=signature_hash,
+            extensions=extensions,
         )
 
 
