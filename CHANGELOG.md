@@ -9,6 +9,8 @@ into a dated version section.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-02
+
 ### Added
 
 - `build_private_key()` takes an `algorithm` argument: `rsa` (the
@@ -137,7 +139,8 @@ into a dated version section.
 
 - Support for Python 3.14.
 
-[Unreleased]: https://github.com/maartenq/cnert/compare/0.10.3...HEAD
+[Unreleased]: https://github.com/maartenq/cnert/compare/0.11.0...HEAD
+[0.11.0]: https://github.com/maartenq/cnert/releases/tag/0.11.0
 [0.10.3]: https://github.com/maartenq/cnert/releases/tag/0.10.3
 [0.10.2]: https://github.com/maartenq/cnert/releases/tag/0.10.2
 [0.10.1]: https://github.com/maartenq/cnert/releases/tag/0.10.1
